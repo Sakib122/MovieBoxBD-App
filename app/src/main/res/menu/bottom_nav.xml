@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/navHome"
+        android:icon="@android:drawable/ic_menu_today"
+        android:title="হোম" />
+    <item
+        android:id="@+id/navSeries"
+        android:icon="@android:drawable/ic_menu_slideshow"
+        android:title="ওয়েব সিরিজ" />
+    <item
+        android:id="@+id/navMovies"
+        android:icon="@android:drawable/ic_menu_gallery"
+        android:title="মুভি" />
+    <item
+        android:id="@+id/navSearch"
+        android:icon="@android:drawable/ic_menu_search"
+        android:title="সার্চ" />
+</menu>

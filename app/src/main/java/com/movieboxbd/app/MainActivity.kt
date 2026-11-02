@@ -1,44 +1,90 @@
 package com.movieboxbd.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
+import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SearchView
+import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
+import androidx.work.PeriodicWorkRequest
+import androidx.work.WorkManager
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
+import java.util.concurrent.TimeUnit
 
+/**
+ * 🏠 হোম v2 — নিচে ৪টা ট্যাব:
+ *  🏠 হোম (নেটফ্লিক্স স্টাইল রো) | 📺 ওয়েব সিরিজ | 🎬 মুভি | 🔍 সার্চ
+ */
 class MainActivity : AppCompatActivity() {
 
-    private val items = ArrayList<MovieItem>()
-    private lateinit var adapter: MovieAdapter
-    private var currentLabel: String? = null
-    private var query: String? = null
-    private var nextIndex = 1
-    private var loading = false
-    private var endReached = false
-    private val seenLabels = LinkedHashSet<String>()
-
+    /* ── ভিউ ── */
+    private lateinit var homeList: RecyclerView
+    private lateinit var homePane: View
+    private lateinit var homeSpinner: ProgressBar
+    private lateinit var homeEmpty: View
+    private lateinit var paneGrid: View
+    private lateinit var chipsWrap: View
+    private lateinit var chips: ChipGroup
     private lateinit var recycler: RecyclerView
     private lateinit var spinner: ProgressBar
     private lateinit var emptyBox: View
     private lateinit var emptyText: TextView
+    private lateinit var searchPane: View
+    private lateinit var searchInput: EditText
+    private lateinit var searchBtn: ImageButton
+    private lateinit var searchGrid: RecyclerView
+    private lateinit var searchSpinner: ProgressBar
+    private lateinit var searchEmpty: View
+
+    /* ── অবস্থা ── */
+    private val items = ArrayList<MovieItem>()
+    private val searchItems = ArrayList<MovieItem>()
+    private lateinit var adapter: MovieAdapter
+    private lateinit var searchAdapter: MovieAdapter
+    private var currentLabel: String? = null
+    private var nextIndex = 1
+    private var loading = false
+    private var endReached = false
+    private var tab = R.id.navHome
+    private var homeLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        homePane = findViewById(R.id.homePane)
+        homeList = findViewById(R.id.homeList)
+        homeSpinner = findViewById(R.id.homeSpinner)
+        homeEmpty = findViewById(R.id.homeEmpty)
+        paneGrid = findViewById(R.id.paneGrid)
+        chipsWrap = findViewById(R.id.chipsWrap)
+        chips = findViewById(R.id.chips)
         recycler = findViewById(R.id.recycler)
         spinner = findViewById(R.id.spinner)
         emptyBox = findViewById(R.id.emptyBox)
         emptyText = findViewById(R.id.emptyText)
+        searchPane = findViewById(R.id.searchPane)
+        searchInput = findViewById(R.id.searchInput)
+        searchBtn = findViewById(R.id.searchBtn)
+        searchGrid = findViewById(R.id.searchGrid)
+        searchSpinner = findViewById(R.id.searchSpinner)
+        searchEmpty = findViewById(R.id.searchEmpty)
 
-        adapter = MovieAdapter(items) { startActivity(DetailActivity.intent(this, it)) }
+        adapter = MovieAdapter(items) { openMovie(it) }
         recycler.layoutManager = GridLayoutManager(this, 2)
         recycler.adapter = adapter
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -48,73 +94,152 @@ class MainActivity : AppCompatActivity() {
                 if (lm.findLastVisibleItemPosition() >= items.size - 4) loadMore()
             }
         })
+
+        searchAdapter = MovieAdapter(searchItems) { openMovie(it) }
+        searchGrid.layoutManager = GridLayoutManager(this, 2)
+        searchGrid.adapter = searchAdapter
+
+        homeList.layoutManager = LinearLayoutManager(this)
+
+        /* 💰 হোম স্ক্রিনের নিচের ব্যানার অ্যাড (তোমার Adsterra) */
+        Ads.applyBanner(findViewById(R.id.adBanner), Config.ADSTERRA_BANNER_320x50)
+
         findViewById<View>(R.id.btnRetry).setOnClickListener { load(true) }
+        findViewById<View>(R.id.btnRetryHome).setOnClickListener { loadHome(true) }
+        findViewById<View>(R.id.btnRetrySearch).setOnClickListener { doSearch() }
+        searchBtn.setOnClickListener { doSearch() }
 
-        setSupportActionBar(findViewById(R.id.toolbar))
+        val nav = findViewById<BottomNavigationView>(R.id.bottomNav)
+        nav.setOnItemSelectedListener { item ->
+            tab = item.itemId
+            when (item.itemId) {
+                R.id.navHome -> { showPane(homePane); loadHome(false) }
+                R.id.navSeries -> { currentLabel = "Web Series"; showPane(paneGrid); load(true) }
+                R.id.navMovies -> { currentLabel = null; showPane(paneGrid); load(true) }
+                R.id.navSearch -> showPane(searchPane)
+            }
+            true
+        }
+        showPane(homePane)
 
-        buildChips()
-        load(true)
+        askNotificationPermission()
+        scheduleUploadCheck()
+        loadHome(true)
     }
 
-    /* ── ক্যাটাগরি চিপস ──────────────────────────────────────── */
+    private fun showPane(pane: View) {
+        homePane.visibility = if (pane === homePane) View.VISIBLE else View.GONE
+        paneGrid.visibility = if (pane === paneGrid) View.VISIBLE else View.GONE
+        searchPane.visibility = if (pane === searchPane) View.VISIBLE else View.GONE
+        if (pane === paneGrid) {
+            chipsWrap.visibility =
+                if (tab == R.id.navSeries) View.GONE else View.VISIBLE
+        }
+    }
+
+    private fun openMovie(m: MovieItem) {
+        Ads.onMovieOpened(this) /* 💰 পপআন্ডার (প্রতি ২ বারে) */
+        startActivity(DetailActivity.intent(this, m))
+    }
+
+    /* ══════════ 🏠 হোম (হিরো + রো) ══════════ */
+
+    private fun loadHome(force: Boolean) {
+        if (homeLoaded && !force) return
+        homeSpinner.visibility = View.VISIBLE
+        homeEmpty.visibility = View.GONE
+        Thread {
+            try {
+                val p1 = BloggerApi.load(null, null, 1)
+                val p2 = try { BloggerApi.load(null, null, 1 + p1.items.size) } catch (_: Exception) { FeedPage(emptyList(), 0) }
+                val all = ArrayList(p1.items)
+                all.addAll(p2.items)
+                val hero = all.firstOrNull()
+                val series = all.filter { BloggerApi.isWebSeries(it.title, it.labels) }
+                val hindi = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
+                        it.labels.any { l -> l.equals("Hindi", true) || l.equals("Hindi Dubbed", true) } }
+                val bangla = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
+                        it.labels.any { l -> l.equals("Bangla", true) } }
+                val dub = all.filter { it.labels.any { l -> Config.BANGLA_DUB_LABELS.any { b -> l.equals(b, true) } } }
+                val sections = ArrayList<Pair<String, List<MovieItem>>>()
+                sections.add("🔥 নতুন আপলোড" to all.take(10))
+                if (series.isNotEmpty()) sections.add("📺 ওয়েব সিরিজ" to series.take(10))
+                if (dub.isNotEmpty()) sections.add("🎙️ বাংলা ডাব" to dub.take(10))
+                if (hindi.isNotEmpty()) sections.add("🇮🇳 হিন্দি মুভি" to hindi.take(10))
+                if (bangla.isNotEmpty()) sections.add("🇧🇩 বাংলা মুভি" to bangla.take(10))
+                runOnUiThread {
+                    homeSpinner.visibility = View.GONE
+                    homeLoaded = true
+                    homeList.adapter = HomeAdapter(hero, sections) { openMovie(it) }
+                    if (all.isEmpty()) homeEmpty.visibility = View.VISIBLE
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    homeSpinner.visibility = View.GONE
+                    if (!homeLoaded) homeEmpty.visibility = View.VISIBLE
+                }
+            }
+        }.start()
+    }
+
+    /* ══════════ 🎬 মুভি / 📺 ওয়েব সিরিজ গ্রিড ══════════ */
 
     private fun buildChips() {
-        val group = findViewById<com.google.android.material.chip.ChipGroup>(R.id.chips)
-        group.removeAllViews()
+        chips.removeAllViews()
         val names = ArrayList<String>()
-        names.add("🔥 সব")
-        for (l in Config.CATEGORY_LABELS) if (!names.contains(l)) names.add(l)
-        for (l in seenLabels) if (!names.contains(l) && names.size < 14) names.add(l)
-
+        if (tab == R.id.navSeries) {
+            names.add("📺 ওয়েব সিরিজ")
+            for (l in Config.WEB_SERIES_LABELS) if (!names.contains(l)) names.add(l)
+        } else {
+            names.add("🔥 সব")
+            for (l in Config.CATEGORY_LABELS) if (!names.contains(l)) names.add(l)
+        }
         for (name in names) {
             val chip = Chip(this)
             chip.text = name
             chip.isCheckable = true
-            chip.isChecked =
-                (name == "🔥 সব" && currentLabel == null) || name == currentLabel
+            val isAll = name == "🔥 সব" || name == "📺 ওয়েব সিরিজ"
+            chip.isChecked = if (tab == R.id.navSeries)
+                (name == "📺 ওয়েব সিরিজ" && currentLabel == "Web Series")
+            else (name == "🔥 সব" && currentLabel == null) || name == currentLabel
             chip.setOnClickListener {
-                currentLabel = if (name == "🔥 সব") null else name
+                currentLabel = if (isAll) (if (tab == R.id.navSeries) "Web Series" else null)
+                else name
                 buildChips()
                 load(true)
             }
-            group.addView(chip)
+            chips.addView(chip)
         }
     }
 
-    /* ── লোডিং ───────────────────────────────────────────────── */
-
     private fun load(reset: Boolean) {
-        if (loading) return
+        if (loading || tab == R.id.navHome) return
         if (reset) {
             items.clear()
             adapter.notifyDataSetChanged()
             nextIndex = 1
             endReached = false
+            buildChips()
         }
         loading = true
         spinner.visibility = View.VISIBLE
         emptyBox.visibility = View.GONE
 
         val label = currentLabel
-        val q = query
         val start = nextIndex
         Thread {
             try {
-                val page = BloggerApi.load(label, q, start)
+                val page = BloggerApi.load(label, null, start)
                 runOnUiThread {
                     loading = false
                     spinner.visibility = View.GONE
-                    for (it in page.items) {
-                        for (l in it.labels) seenLabels.add(l)
-                    }
                     items.addAll(page.items)
                     nextIndex = start + page.items.size
                     if (page.items.size < 20) endReached = true
                     adapter.notifyDataSetChanged()
                     if (items.isEmpty()) {
                         emptyBox.visibility = View.VISIBLE
-                        emptyText.text = if (query != null) "🔍 কিছু পাওয়া যায়নি"
-                        else "😕 কোনো মুভি লোড হয়নি"
+                        emptyText.text = "😕 কোনো মুভি লোড হয়নি"
                     }
                 }
             } catch (e: Exception) {
@@ -133,25 +258,68 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadMore() {
-        if (loading || endReached || items.isEmpty()) return
+        if (loading || endReached || items.isEmpty() || tab == R.id.navHome) return
         load(false)
     }
 
-    /* ── সার্চ ───────────────────────────────────────────────── */
+    /* ══════════ 🔍 সার্চ ══════════ */
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        val sv = menu.findItem(R.id.actionSearch)?.actionView as? SearchView ?: return true
-        sv.queryHint = "মুভি খুঁজো..."
-        sv.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(text: String?): Boolean {
-                query = text?.trim()?.ifEmpty { null }
-                load(true)
-                sv.clearFocus()
-                return true
+    private fun doSearch() {
+        val q = searchInput.text?.toString()?.trim().orEmpty()
+        if (q.isEmpty()) {
+            Toast.makeText(this, "🔎 কী খুঁজবে লিখো", Toast.LENGTH_SHORT).show()
+            return
+        }
+        searchSpinner.visibility = View.VISIBLE
+        searchEmpty.visibility = View.GONE
+        findViewById<View>(R.id.btnRetrySearch).visibility = View.GONE
+        Thread {
+            try {
+                val page = BloggerApi.load(null, q, 1)
+                runOnUiThread {
+                    searchSpinner.visibility = View.GONE
+                    searchItems.clear()
+                    searchItems.addAll(page.items)
+                    searchAdapter.notifyDataSetChanged()
+                    if (searchItems.isEmpty()) searchEmpty.visibility = View.VISIBLE
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    searchSpinner.visibility = View.GONE
+                    searchEmpty.visibility = View.VISIBLE
+                    findViewById<View>(R.id.btnRetrySearch).visibility = View.VISIBLE
+                }
             }
-            override fun onQueryTextChange(newText: String?): Boolean = false
-        })
-        return true
+        }.start()
+    }
+
+    /* ══════════ 🔔 নোটিফিকেশন ══════════ */
+
+    private fun askNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101
+            )
+        }
+    }
+
+    private fun scheduleUploadCheck() {
+        try {
+            val wm = WorkManager.getInstance(this)
+            wm.enqueueUniquePeriodicWork(
+                "mbx_upload_check",
+                ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequest.Builder(UploadCheckWorker::class.java, 15, TimeUnit.MINUTES).build()
+            )
+            wm.enqueueUniqueWork(
+                "mbx_upload_now",
+                ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequest.Builder(UploadCheckWorker::class.java).build()
+            )
+        } catch (_: Exception) {
+        }
     }
 }

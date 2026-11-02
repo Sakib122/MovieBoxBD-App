@@ -7,5 +7,6 @@
     <color name="accent2">#00E5A0</color>
     <color name="textMain">#FFFFFF</color>
     <color name="textSub">#A5AAC0</color>
+    <color name="icon_bg">#15151F</color>
     <color name="ic_launcher_background">#6C2BD9</color>
 </resources>

@@ -9,27 +9,70 @@ object Config {
     /* ── তোমার ওয়েবসাইট (Blogger) ─────────────────────────────── */
     const val SITE = "https://www.movieboxbd.xyz"
 
-    /* ── ক্যাটাগরি — ব্লগের Labels হুবহু লিখো (বড়/ছোট হাতের অক্ষর মিলতে হবে) ── */
-    val CATEGORY_LABELS = listOf("Hindi", "Hindi Dubbed", "Bangla", "Horror", "Web Series", "South")
+    /* ── ক্যাটাগরি চিপস (মুভি ট্যাব) — ব্লগের Labels হুবহু লিখো ── */
+    val CATEGORY_LABELS = listOf(
+        "Hindi", "Hindi Dubbed", "Bangla", "Korean", "English", "Horror"
+    )
+
+    /* ── ওয়েব সিরিজ চেনার লেবেল ──────────────────────────────── */
+    val WEB_SERIES_LABELS = listOf("Web Series")
+
+    /* ── বাংলা ডাব লেবেল — ব্লগে এই লেবেল দিলেই অ্যাপে অটো সেকশন আসবে ── */
+    val BANGLA_DUB_LABELS = listOf("Bangla Dub", "বাংলা ডাব", "Bangla Dubbing", "Bangla Dubbed")
+
+    /* ── টেলিগ্রাম বটের ইউজারনেম (@ ছাড়া) — যেমন: "MovieBoxBDBot"
+          এটা দিলেই ডিটেইল পেজে ✈️ টেলিগ্রাম বাটন চালু হবে ── */
+    const val TELEGRAM_BOT_USERNAME = "movieboxxpro_bot"
 
     /* ── টেলিগ্রাম চ্যানেল/গ্রুপ (খালি রাখলে বাটন দেখাবে না) ───── */
     const val TELEGRAM_URL = ""
 
-    /* ══════════════ 💰 ADSTERRA — তোমার অ্যাড ══════════════
-       ✅ তোমার সাইটে যে Direct Link চলছে সেটাই বসানো আছে।
-       বদলাতে চাইলে Adsterra Dashboard → Direct Links → নতুন লিংক
-       কপি করে নিচে পেস্ট করো। খালি ("") রাখলে অ্যাড দেখাবে না।   */
+    /* ══════════════ 💰 ADSTERRA — তোমার নিজের অ্যাড ══════════════
 
-    /** ▶ প্লে চাপলে (প্রতি ৬ ঘণ্টায় ১ বার) এই লিংক খুলবে — তোমার সাইটের মতই */
+       📌 সিস্টেম (ইনকাম বেশি + বিরক্তি কম):
+       ① ▶ প্লে চাপলেই সাথে সাথে Direct Link খুলবে (প্রতিবার, কোনো কুলডাউন নেই)
+       ② ইউজার অ্যাডে কমপক্ষে AD_WATCH_SECONDS সেকেন্ড থাকতে হবে —
+          তার আগে ফিরে এলে অ্যাপে কাউন্টডাউন দেখিয়ে তারপর প্লে হবে
+       ③ মুভি কার্ডে ক্লিক করলে প্রতি ২ বারে ১ বার (POPUNDER_EVERY_N) Direct Link
+       ④ ব্যানার: হোম-নিচ + ডিটেইল-নিচ (320×50) + ডিটেইল ভেতরে (300×250)
+       ⑤ প্লেয়ারে কোনো অ্যাড নেই — মুভি দেখার সময় শূন্য বিরক্তি          */
+
+    /** ▶ প্লে / মুভি ওপেন করলে এই লিংক ব্রাউজারে খুলবে */
     const val ADSTERRA_DIRECT_LINK =
-        "https://www.effectivecpmnetwork.com/t0t62pprhs?key=1952b9f3548cd57e994e610fde24e41f"
+        "https://asiafilm.org/4/dd496e8de5fdbe10f2ccf3defc93c342"
 
-    /** ঘণ্টায় কতক্ষণ পর পর Direct Link খুলবে */
-    const val DIRECT_LINK_COOLDOWN_HOURS = 6
+    /** ▶ প্লের আগে অ্যাডে কত সেকেন্ড থাকতে হবে (৫–১০, যেটা বেস্ট) */
+    const val AD_WATCH_SECONDS = 10
 
-    /** নিচে ছোট ব্যানার অ্যাড — Adsterra ড্যাশবোর্ড থেকে ব্যানার কোড কপি করে
-        পুরো <script>...</script> অংশ এখানে পেস্ট করো।
-        যেমন: "<script type='text/javascript'> atOptions = {...} </script>"
-        খালি ("") রাখলে ব্যানার দেখাবে না। */
-    const val ADSTERRA_BANNER_HTML = ""
+    /** মুভি কার্ডে কতবার ক্লিকে ১ বার পপআন্ডার খুলবে (২ = প্রতি ২ বারে ১ বার) */
+    const val POPUNDER_EVERY_N = 2
+
+    /* ── 320×50 ব্যানার (হোম + ডিটেইল পেজের নিচে)। খালি ("") দিলে দেখাবে না ── */
+    const val ADSTERRA_BANNER_320x50 = "<script type='text/javascript'>\n" +
+        "atOptions = {\n" +
+        "'key' : 'a19161feecb13d6d32cfa3a7f599f5a2',\n" +
+        "'format' : 'iframe',\n" +
+        "'height' : 50,\n" +
+        "'width' : 320,\n" +
+        "'params' : {}\n" +
+        "};\n" +
+        "</script>\n" +
+        "<script src='https://bicea.org/22/a19161feecb13d6d32cfa3a7f599f5a2'></script>"
+
+    /* ── 300×250 ব্যানার (ডিটেইল পেজের ভেতরে)। খালি ("") দিলে দেখাবে না ── */
+    const val ADSTERRA_BANNER_300x250 = "<script type='text/javascript'>\n" +
+        "atOptions = {\n" +
+        "'key' : '091649489016302f51dd722fff20f22b',\n" +
+        "'format' : 'iframe',\n" +
+        "'height' : 250,\n" +
+        "'width' : 300,\n" +
+        "'params' : {}\n" +
+        "};\n" +
+        "</script>\n" +
+        "<script src='https://bicea.org/22/091649489016302f51dd722fff20f22b'></script>"
+
+    /* ══════════════ 🔔 নোটিফিকেশন ══════════════
+       ব্লগে নতুন মুভি দিলে অ্যাপ নিজে থেকেই চেক করে নোটিফিকেশন দেখাবে
+       (কোনো ফায়ারবেস/সার্ভার লাগে না — সম্পূর্ণ ফ্রি)।                  */
+    const val NOTIFY_NEW_UPLOADS = true
 }

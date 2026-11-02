@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="230dp"
+    android:layout_margin="10dp">
+
+    <ImageView
+        android:id="@+id/heroImg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/surface2"
+        android:contentDescription="poster"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/hero_gradient" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@color/accent"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:text="🆕 সর্বশেষ আপলোড"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/heroTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="2"
+            android:shadowColor="#90000000"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:shadowRadius="3"
+            android:textColor="@color/textMain"
+            android:textSize="17sp" />
+
+        <TextView
+            android:id="@+id/heroMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/textSub"
+            android:textSize="12sp" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,55 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
-    android:orientation="vertical">
+    android:background="@color/bg">
 
-    <!-- উপরের বার -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/surface"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/btnBack"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="back"
-            android:src="@android:drawable/ic_menu_revert"
-            app:tint="@color/textMain" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="মুভি ডিটেইল"
-            android:textColor="@color/textMain"
-            android:textSize="18sp"
-            android:fontFamily="sans-serif-medium" />
-    </LinearLayout>
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true">
-
+        <!-- উপরের বার -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="14dp">
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/surface"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-            <LinearLayout
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="back"
+                android:src="@android:drawable/ic_menu_revert"
+                app:tint="@color/textMain" />
+
+            <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
+                android:fontFamily="sans-serif-medium"
+                android:text="মুভি ডিটেইল"
+                android:textColor="@color/textMain"
+                android:textSize="18sp" />
+        </LinearLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -73,9 +71,20 @@
                         android:paddingStart="12dp">
 
                         <TextView
+                            android:id="@+id/dBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@color/accent"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="2dp"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp" />
+
+                        <TextView
                             android:id="@+id/dTitle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
                             android:fontFamily="sans-serif-medium"
                             android:textColor="@color/textMain"
                             android:textSize="17sp" />
@@ -94,10 +103,10 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="18dp"
+                    android:fontFamily="sans-serif-medium"
                     android:text="🎥 দেখো / ডাউনলোড করো"
                     android:textColor="@color/textMain"
-                    android:textSize="15sp"
-                    android:fontFamily="sans-serif-medium" />
+                    android:textSize="15sp" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/linkList"
@@ -107,35 +116,95 @@
                     android:nestedScrollingEnabled="false" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnTelegram"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:text="@string/telegram"
-                    app:backgroundTint="@color/surface2"
-                    app:iconTint="@color/textMain" />
-
-                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnWeb"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="14dp"
                     android:text="@string/open_web"
                     app:backgroundTint="@color/surface2" />
+
+                <!-- 💰 300×250 অ্যাড (তোমার Adsterra) -->
+                <FrameLayout
+                    android:id="@+id/adBoxRect"
+                    android:layout_width="match_parent"
+                    android:layout_height="250dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@color/surface">
+
+                    <WebView
+                        android:id="@+id/adRect"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+                </FrameLayout>
             </LinearLayout>
-        </LinearLayout>
-    </ScrollView>
+        </ScrollView>
 
-    <!-- 💰 নিচের ব্যানার অ্যাড -->
-    <FrameLayout
-        android:id="@+id/adBox2"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@color/surface">
-
-        <WebView
-            android:id="@+id/adBanner"
+        <!-- 💰 নিচের ব্যানার অ্যাড -->
+        <FrameLayout
+            android:id="@+id/adBox2"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-    </FrameLayout>
-</LinearLayout>
+            android:layout_height="60dp"
+            android:background="@color/surface">
+
+            <WebView
+                android:id="@+id/adBanner"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- ══ ⏳ অ্যাড গেট ওভারলে (কাউন্টডাউন) ══ -->
+    <LinearLayout
+        android:id="@+id/gateOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6000000"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="28dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎬"
+            android:textSize="44sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:text="অ্যাড দেখা শেষ! প্লে শুরু হচ্ছে..."
+            android:textColor="@color/textMain"
+            android:textSize="18sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/gateCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="5"
+            android:textColor="@color/accent"
+            android:textSize="56sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="একটু অপেক্ষা করো — মুভি অটো প্লে হবে 🍿"
+            android:textColor="@color/textSub"
+            android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGateCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:onClick="cancelGate"
+            android:text="✖ বাতিল করো"
+            app:backgroundTint="@color/surface2" />
+    </LinearLayout>
+</FrameLayout>
