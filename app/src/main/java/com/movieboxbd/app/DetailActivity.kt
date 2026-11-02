@@ -1,8 +1,6 @@
 package com.movieboxbd.app
 
 import android.app.DownloadManager
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -22,10 +20,13 @@ import androidx.recyclerview.widget.RecyclerView
 
 /**
  * ডিটেইল পেজ v2:
- *  ▶ প্লে    → প্রতিবার Direct Link খুলবে → ১০ সেকেন্ড গেট → তারপর প্লে
- *  ⬇ ডাউনলোড → সরাসরি ডাউনলোড (Downloads ফোল্ডারে)
- *  🌐 ব্রাউজার → ক্রোমে খুলবে (ওখান থেকেও ডাউনলোড করা যায়)
- *  ✈ টেলিগ্রাম → তোমার বটে নিয়ে যাবে (ফাইল লিংক কপি হয়ে থাকবে)
+ *  ▶ দেখো      → ওয়েবসাইটের আসল স্ট্রিম লিংক (না থাকলে বাটন লুকাবে)
+ *                প্রতিবার Direct Link খুলবে → ১০ সেকেন্ড গেট → তারপর প্লে
+ *  ⬇ ডাউনলোড  → ওয়েবসাইটের আসল ডাউনলোড লিংক = টেলিগ্রাম বট (t.me/bot?start=file_ID)
+ *                বট সেট না থাকলে ফলব্যাক: সরাসরি ডাউনলোড
+ *  🌐 ব্রাউজার  → ওয়েবসাইটের সেই ফাইলের পেজ (/watch/ — ওখানে ডাউনলোড পেজও আছে)
+ *  ✈ টেলিগ্রাম → টেলিগ্রাম বটের লিংক
+ *  স্ট্রিম লিংক না থাকলে উপরে লেখা দেখাবে: "এখানে ভিডিও নেই — ডাউনলোড করে দেখো"
  */
 class DetailActivity : AppCompatActivity() {
 
@@ -78,6 +79,11 @@ class DetailActivity : AppCompatActivity() {
             try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(m.permalink))) }
             catch (_: Exception) {}
         }
+
+        /* স্ট্রিম লিংক না থাকলে নোটিশ দেখাও */
+        val hasStream = m.links.any { it.streamUrl.isNotBlank() }
+        findViewById<View>(R.id.noVideoNote).visibility =
+            if (hasStream) View.GONE else View.VISIBLE
 
         /* ব্যানার অ্যাড (তোমার Adsterra কোড) */
         Ads.applyBanner(findViewById(R.id.adBanner), Config.ADSTERRA_BANNER_320x50)
@@ -141,7 +147,7 @@ class DetailActivity : AppCompatActivity() {
         ui.removeCallbacksAndMessages(null)
     }
 
-    /* ── ফাইল লিস্ট (৩ বাটন) ────────────────────────────────── */
+    /* ── ফাইল লিস্ট (ওয়েবসাইটের আসল নাম ও লিংক) ─────────────── */
 
     inner class LinkAdapter(private val links: List<MediaLink>) :
         RecyclerView.Adapter<LinkAdapter.VH>() {
@@ -165,6 +171,10 @@ class DetailActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, pos: Int) {
             val link = links[pos]
             h.name.text = link.name
+
+            /* ▶ দেখো — স্ট্রিম লিংক থাকলেই শুধু দেখাবে */
+            h.play.visibility =
+                if (link.streamUrl.isNotBlank()) View.VISIBLE else View.GONE
             h.play.setOnClickListener {
                 /* 💰 প্রতিবার প্লে চাপলেই Direct Link খুলবে → গেট → প্লে */
                 Ads.requestPlay(this@DetailActivity, link.streamUrl, link.name)
@@ -174,17 +184,48 @@ class DetailActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
             }
-            h.dl.setOnClickListener { download(link) }
-            h.web.setOnClickListener {
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.streamUrl)))
-                } catch (_: Exception) {}
+
+            /* ⬇ ডাউনলোড — ওয়েবসাইটের আসল ডাউনলোড = টেলিগ্রাম বট; না থাকলে সরাসরি ডাউনলোড */
+            h.dl.setOnClickListener {
+                if (link.tgUrl.isNotBlank()) openTelegram(link.tgUrl) else download(link)
             }
-            h.tg.setOnClickListener { sendToTelegram(link) }
+
+            /* 🌐 ব্রাউজার — ওয়েবসাইটের ওই ফাইলের পেজ */
+            h.web.setOnClickListener { openBrowser(link) }
+
+            /* ✈ টেলিগ্রাম — বটের আসল ফাইল লিংক থাকলে দেখাবে */
+            h.tg.visibility = if (link.tgUrl.isNotBlank()) View.VISIBLE else View.GONE
+            h.tg.setOnClickListener { openTelegram(link.tgUrl) }
         }
     }
 
-    /* ── ⬇ সরাসরি ডাউনলোড ────────────────────────────────── */
+    /* ── ✈ টেলিগ্রাম বট (আসল ফাইল লিংক: t.me/bot?start=file_ID) ── */
+
+    private fun openTelegram(url: String) {
+        if (url.isBlank()) {
+            Toast.makeText(this, "টেলিগ্রাম লিংক নেই", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            Toast.makeText(
+                this,
+                "✈️ টেলিগ্রাম খুলছে — বটে START চাপলেই ফাইল পাঠিয়ে দেবে",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (_: Exception) {
+        }
+    }
+
+    /* ── 🌐 ব্রাউজারে ওই ফাইলের পেজ ─────────────────────────── */
+
+    private fun openBrowser(link: MediaLink) {
+        val url = link.pageUrl.ifBlank { link.streamUrl }
+        if (url.isBlank()) return
+        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+    }
+
+    /* ── ⬇ ফলব্যাক: সরাসরি ডাউনলোড (টেলিগ্রাম লিংক না থাকলে) ── */
 
     private fun download(link: MediaLink) {
         try {
@@ -200,25 +241,6 @@ class DetailActivity : AppCompatActivity() {
             Toast.makeText(this, "📥 ডাউনলোড শুরু হয়েছে", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "ডাউনলোড শুরু করা যায়নি", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /* ── ✈ টেলিগ্রাম বট ─────────────────────────────────────── */
-
-    private fun sendToTelegram(link: MediaLink) {
-        try {
-            val bot = Config.TELEGRAM_BOT_USERNAME
-            if (bot.isBlank()) {
-                Toast.makeText(this, "টেলিগ্রাম বট সেট করা নেই", Toast.LENGTH_SHORT).show()
-                return
-            }
-            /* ফাইল লিংক কপি করে রাখো — বটে পেস্ট করলেই ফাইল পাবে */
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("link", link.streamUrl))
-            val i = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/$bot"))
-            startActivity(i)
-            Toast.makeText(this, "🔗 ফাইল লিংক কপি হয়েছে — বটে পাঠাও", Toast.LENGTH_LONG).show()
-        } catch (_: Exception) {
         }
     }
 }
