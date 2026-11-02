@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -15,22 +16,26 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
 
 /**
- * ডিটেইল পেজ v2:
- *  ▶ দেখো      → ওয়েবসাইটের আসল স্ট্রিম লিংক (না থাকলে বাটন লুকাবে)
- *                প্রতিবার Direct Link খুলবে → ১০ সেকেন্ড গেট → তারপর প্লে
- *  ⬇ ডাউনলোড  → ওয়েবসাইটের আসল ডাউনলোড লিংক = টেলিগ্রাম বট (t.me/bot?start=file_ID)
- *                বট সেট না থাকলে ফলব্যাক: সরাসরি ডাউনলোড
- *  🌐 ব্রাউজার  → ওয়েবসাইটের সেই ফাইলের পেজ (/watch/ — ওখানে ডাউনলোড পেজও আছে)
- *  ✈ টেলিগ্রাম → টেলিগ্রাম বটের লিংক
- *  স্ট্রিম লিংক না থাকলে উপরে লেখা দেখাবে: "এখানে ভিডিও নেই — ডাউনলোড করে দেখো"
+ * ডিটেইল পেজ v3:
+ *  ▶ দেখো / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম — এই ৪টা বাটনেই আগে অ্যাড আসবে,
+ *    অ্যাড শেষ হলে কাজটা হবে (অ্যাড প্রতিবার, বাইপাস নেই)
+ *  📜 ফাইল/এপিসোড বেশি থাকলে প্রথম ৪টা উপরে দেখাবে + "সবগুলো দেখো" বাটনে
+ *    সুন্দর স্ক্রলেবল বটম-শিটে পুরো লিস্ট
+ *  ফাইলের নাম ওয়েবসাইটের আসল ডাটা — ফুল সিরিজ হলে "ফুল সিরিজ (Full Complete)" লেখা থাকবে
  */
 class DetailActivity : AppCompatActivity() {
 
     companion object {
+        /** ডিটেইল পেজে সরাসরি কয়টা ফাইল দেখানো হবে (বাকিটা বটম শিটে) */
+        const val INLINE_COUNT = 4
+
         fun intent(ctx: Context, m: MovieItem): Intent {
             val i = Intent(ctx, DetailActivity::class.java)
             i.putExtra("item", m)
@@ -42,6 +47,7 @@ class DetailActivity : AppCompatActivity() {
     private val ui = Handler(Looper.getMainLooper())
     private var gateCount: TextView? = null
     private var gateLeft = 0
+    private var sheet: BottomSheetDialog? = null
 
     private val gateTick = object : Runnable {
         override fun run() {
@@ -89,25 +95,58 @@ class DetailActivity : AppCompatActivity() {
         Ads.applyBanner(findViewById(R.id.adBanner), Config.ADSTERRA_BANNER_320x50)
         Ads.applyBanner(findViewById(R.id.adRect), Config.ADSTERRA_BANNER_300x250)
 
-        /* ফাইল লিস্ট */
+        /* ফাইল লিস্ট — প্রথম ৪টা সরাসরি, বাকিটা বটম শিটে */
         val list = findViewById<RecyclerView>(R.id.linkList)
         list.layoutManager = LinearLayoutManager(this)
-        list.adapter = LinkAdapter(m.links)
+        list.adapter = LinkAdapter(m.links.take(INLINE_COUNT), closeSheet = false)
+
+        val btnAll = findViewById<MaterialButton>(R.id.btnAllLinks)
+        btnAll.isVisible = m.links.size > INLINE_COUNT
+        btnAll.text = "📜 সবগুলো দেখো  (${m.links.size} টা ফাইল)"
+        btnAll.setOnClickListener { showAllLinks(m.links) }
     }
 
-    /* ── অ্যাড গেট: ফিরে এলে বাকি সেকেন্ড দেখিয়ে প্লে ─────────── */
+    /* ── 📜 পুরো এপিসোড/ফাইল লিস্ট — সুন্দর স্ক্রলেবল বটম শিট ──── */
+
+    private fun showAllLinks(links: List<MediaLink>) {
+        val v = LayoutInflater.from(this).inflate(R.layout.sheet_links, null)
+        v.findViewById<TextView>(R.id.sheetCount).text = "মোট ${links.size} টা ফাইল"
+        val rv = v.findViewById<RecyclerView>(R.id.sheetList)
+        rv.layoutManager = LinearLayoutManager(this)
+        rv.adapter = LinkAdapter(links, closeSheet = true)
+        sheet = BottomSheetDialog(this).apply {
+            setContentView(v)
+            show()
+        }
+    }
+
+    private fun closeSheet() {
+        sheet?.dismiss()
+        sheet = null
+    }
+
+    /* ── অ্যাড গেট: ফিরে এলে বাকি সেকেন্ড দেখিয়ে কাজটা করা ─────── */
 
     override fun onResume() {
         super.onResume()
         val remain = Ads.pendingRemaining(this)
         if (remain < 0) return
-        if (remain == 0) startGateCountdown(3)
+        if (remain == 0) startGateCountdown(0)
         else startGateCountdown(remain)
     }
 
     private fun startGateCountdown(seconds: Int) {
         val overlay = findViewById<View>(R.id.gateOverlay)
         gateCount = findViewById(R.id.gateCount)
+        /* কোন কাজ অপেক্ষা করছে সেই মেসেজ */
+        val p = getSharedPreferences("mbx_ad", Context.MODE_PRIVATE)
+        val type = p.getInt("gate_type", Ads.ACT_PLAY)
+        findViewById<TextView>(R.id.gateMsg).text = when (type) {
+            Ads.ACT_PLAY -> "অ্যাড দেখা শেষ! প্লে শুরু হচ্ছে..."
+            Ads.ACT_DOWNLOAD -> "অ্যাড দেখা শেষ! ডাউনলোড শুরু হচ্ছে..."
+            Ads.ACT_TELEGRAM -> "অ্যাড দেখা শেষ! টেলিগ্রাম খুলছে..."
+            else -> "অ্যাড দেখা শেষ! ওয়েবসাইট খুলছে..."
+        }
         overlay.visibility = View.VISIBLE
         gateLeft = seconds
         ui.removeCallbacks(gateTick)
@@ -116,15 +155,20 @@ class DetailActivity : AppCompatActivity() {
 
     private fun finishGate() {
         findViewById<View>(R.id.gateOverlay).visibility = View.GONE
-        val pending = Ads.consume(this)
-        if (pending != null) openPlayer(pending.first, pending.second)
+        val a = Ads.consume(this) ?: return
+        when (a.type) {
+            Ads.ACT_PLAY -> openPlayer(a.url, a.title)
+            Ads.ACT_TELEGRAM -> openTelegram(a.url)
+            Ads.ACT_DOWNLOAD -> download(a.extra, a.title)
+            Ads.ACT_BROWSER -> openBrowser(a.url)
+        }
     }
 
     fun cancelGate(v: View) {
         ui.removeCallbacks(gateTick)
         findViewById<View>(R.id.gateOverlay).visibility = View.GONE
         Ads.cancelGate(this)
-        Toast.makeText(this, "প্লে বাতিল হয়েছে", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "বাতিল করা হয়েছে", Toast.LENGTH_SHORT).show()
     }
 
     private fun openPlayer(url: String, name: String) {
@@ -149,8 +193,10 @@ class DetailActivity : AppCompatActivity() {
 
     /* ── ফাইল লিস্ট (ওয়েবসাইটের আসল নাম ও লিংক) ─────────────── */
 
-    inner class LinkAdapter(private val links: List<MediaLink>) :
-        RecyclerView.Adapter<LinkAdapter.VH>() {
+    inner class LinkAdapter(
+        private val links: List<MediaLink>,
+        private val closeSheet: Boolean
+    ) : RecyclerView.Adapter<LinkAdapter.VH>() {
 
         inner class VH(v: View) : RecyclerView.ViewHolder(v) {
             val name: TextView = v.findViewById(R.id.linkName)
@@ -161,7 +207,7 @@ class DetailActivity : AppCompatActivity() {
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val v = android.view.LayoutInflater.from(parent.context)
+            val v = LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_link, parent, false)
             return VH(v)
         }
@@ -172,30 +218,55 @@ class DetailActivity : AppCompatActivity() {
             val link = links[pos]
             h.name.text = link.name
 
-            /* ▶ দেখো — স্ট্রিম লিংক থাকলেই শুধু দেখাবে */
-            h.play.visibility =
-                if (link.streamUrl.isNotBlank()) View.VISIBLE else View.GONE
-            h.play.setOnClickListener {
-                /* 💰 প্রতিবার প্লে চাপলেই Direct Link খুলবে → গেট → প্লে */
-                Ads.requestPlay(this@DetailActivity, link.streamUrl, link.name)
+            /* অ্যাড দেখানোর আগে বটম শিট থাকলে বন্ধ */
+            fun beforeAd() {
+                if (closeSheet) closeSheet()
                 Toast.makeText(
                     this@DetailActivity,
-                    "📢 অ্যাডটি ${Config.AD_WATCH_SECONDS} সেকেন্ড দেখো — ফিরে এলে প্লে শুরু হবে!",
+                    "📢 অ্যাডটি ${Config.AD_WATCH_SECONDS} সেকেন্ড দেখো — ফিরে এলে চালিয়ে যাবে!",
                     Toast.LENGTH_LONG
                 ).show()
             }
 
-            /* ⬇ ডাউনলোড — ওয়েবসাইটের আসল ডাউনলোড = টেলিগ্রাম বট; না থাকলে সরাসরি ডাউনলোড */
+            /* ▶ দেখো — স্ট্রিম লিংক থাকলেই শুধু দেখাবে */
+            h.play.visibility =
+                if (link.streamUrl.isNotBlank()) View.VISIBLE else View.GONE
+            h.play.setOnClickListener {
+                beforeAd()
+                /* 💰 আগে Direct Link → গেট → প্লে */
+                Ads.requestAction(
+                    this@DetailActivity, Ads.ACT_PLAY,
+                    link.streamUrl, link.name
+                )
+            }
+
+            /* ⬇ ডাউনলোড — টেলিগ্রাম বটের লিংক; না থাকলে সরাসরি ডাউনলোড */
             h.dl.setOnClickListener {
-                if (link.tgUrl.isNotBlank()) openTelegram(link.tgUrl) else download(link)
+                beforeAd()
+                if (link.tgUrl.isNotBlank()) {
+                    Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
+                } else {
+                    Ads.requestAction(
+                        this@DetailActivity, Ads.ACT_DOWNLOAD,
+                        "", link.name, link.streamUrl
+                    )
+                }
             }
 
             /* 🌐 ব্রাউজার — ওয়েবসাইটের ওই ফাইলের পেজ */
-            h.web.setOnClickListener { openBrowser(link) }
+            h.web.setOnClickListener {
+                val url = link.pageUrl.ifBlank { link.streamUrl }
+                if (url.isBlank()) return@setOnClickListener
+                beforeAd()
+                Ads.requestAction(this@DetailActivity, Ads.ACT_BROWSER, url, link.name)
+            }
 
             /* ✈ টেলিগ্রাম — বটের আসল ফাইল লিংক থাকলে দেখাবে */
             h.tg.visibility = if (link.tgUrl.isNotBlank()) View.VISIBLE else View.GONE
-            h.tg.setOnClickListener { openTelegram(link.tgUrl) }
+            h.tg.setOnClickListener {
+                beforeAd()
+                Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
+            }
         }
     }
 
@@ -219,20 +290,23 @@ class DetailActivity : AppCompatActivity() {
 
     /* ── 🌐 ব্রাউজারে ওই ফাইলের পেজ ─────────────────────────── */
 
-    private fun openBrowser(link: MediaLink) {
-        val url = link.pageUrl.ifBlank { link.streamUrl }
+    private fun openBrowser(url: String) {
         if (url.isBlank()) return
         try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
     }
 
     /* ── ⬇ ফলব্যাক: সরাসরি ডাউনলোড (টেলিগ্রাম লিংক না থাকলে) ── */
 
-    private fun download(link: MediaLink) {
+    private fun download(streamUrl: String, rawName: String) {
+        if (streamUrl.isBlank()) {
+            Toast.makeText(this, "ডাউনলোড লিংক নেই", Toast.LENGTH_SHORT).show()
+            return
+        }
         try {
-            val name = (link.name.ifBlank { "movie" }).replace(Regex("[^a-zA-Z0-9._-]"), "_")
-            val ext = if (link.streamUrl.lowercase().contains(".mp4")) ".mp4" else ".mkv"
+            val name = (rawName.ifBlank { "movie" }).replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val ext = if (streamUrl.lowercase().contains(".mp4")) ".mp4" else ".mkv"
             val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            val req = DownloadManager.Request(Uri.parse(link.streamUrl))
+            val req = DownloadManager.Request(Uri.parse(streamUrl))
                 .setTitle(name)
                 .setDescription("MovieBoxBD ডাউনলোড")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)

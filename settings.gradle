@@ -1,5 +1,8 @@
 pluginManagement {
     repositories {
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' } /* লোকাল টেস্ট মিরর */
+        maven { url 'https://maven.aliyun.com/repository/central' }      /* লোকাল টেস্ট মিরর */
+        maven { url 'https://maven.aliyun.com/repository/google' }       /* লোকাল টেস্ট মিরর */
         google()
         mavenCentral()
         gradlePluginPortal()
@@ -8,6 +11,8 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }       /* লোকাল টেস্ট মিরর */
+        maven { url 'https://maven.aliyun.com/repository/central' }      /* লোকাল টেস্ট মিরর */
         google()
         mavenCentral()
     }

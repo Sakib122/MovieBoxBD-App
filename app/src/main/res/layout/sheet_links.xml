@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface"
+    android:orientation="vertical">
+
+    <!-- হেডার: টাইটেল + মোট ফাইল -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:text="📋 সব এপিসোড / ফাইল"
+            android:textColor="@color/textMain"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/sheetCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="মোট 0 টা ফাইল"
+            android:textColor="@color/accent2"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/surface2" />
+
+    <!-- স্ক্রলেবল লিস্ট -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sheetList"
+        android:layout_width="match_parent"
+        android:layout_height="420dp"
+        android:clipToPadding="false"
+        android:paddingHorizontal="10dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="24dp" />
+</LinearLayout>

@@ -14,12 +14,6 @@
         app:show_buffering="when_playing"
         app:surface_type="surface_view" />
 
-    <!-- MX স্টাইল জেসচার লেয়ার (কন্ট্রোলার লুকালে এটা সক্রিয়) -->
-    <View
-        android:id="@+id/gestureArea"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
     <TextView
         android:id="@+id/gestureHint"
         android:layout_width="wrap_content"
@@ -33,7 +27,7 @@
         android:textSize="16sp"
         android:visibility="gone" />
 
-    <!-- ══ MX স্টাইল বাটন বার: 🔒 লক / ⚡ স্পিড / 🎧 অডিও ══ -->
+    <!-- ══ MX স্টাইল বাটন বার: 🔒 লক / ⚡ স্পিড / 🎧 অডিও / 💬 সাব ══ -->
     <LinearLayout
         android:id="@+id/mxBar"
         android:layout_width="wrap_content"
@@ -72,22 +66,37 @@
             android:gravity="center"
             android:text="🎧"
             android:textSize="17sp" />
+
+        <TextView
+            android:id="@+id/btnMSub"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="💬"
+            android:textSize="17sp" />
     </LinearLayout>
 
-    <!-- 🔓 লক খোলার বাটন (লক করলে শুধু এটা দেখা যাবে) -->
+    <!-- 🔒 লক থাকলে পুরো স্ক্রিন এই লেয়ার গিলে ফেলবে — কোনো ছোঁয়া কাজ করবে না -->
+    <View
+        android:id="@+id/lockLayer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- 🔓 আনলক — উপরের বাম কোণায় (MX Player-এর মতো); লক করলেই শুধু এটা দেখা যাবে -->
     <TextView
         android:id="@+id/btnMUnlock"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="18dp"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:layout_gravity="top|start"
+        android:layout_margin="10dp"
         android:background="#88000000"
         android:gravity="center"
-        android:paddingHorizontal="20dp"
-        android:paddingVertical="10dp"
-        android:text="🔓 আনলক"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
+        android:text="🔓"
+        android:textSize="20sp"
         android:visibility="gone" />
 
     <!-- ⚠️ লোড ফেল হলে -->

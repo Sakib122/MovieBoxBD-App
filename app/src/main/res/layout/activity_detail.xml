@@ -128,6 +128,17 @@
                     android:layout_marginTop="6dp"
                     android:nestedScrollingEnabled="false" />
 
+                <!-- 📜 ফাইল/এপিসোড ৪টার বেশি থাকলে এই বাটনে সুন্দর স্ক্রলেবল লিস্ট -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAllLinks"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="📜 সবগুলো দেখো"
+                    android:visibility="gone"
+                    app:backgroundTint="@color/surface2"
+                    app:iconGravity="textStart" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnWeb"
                     android:layout_width="match_parent"
@@ -184,6 +195,7 @@
             android:textSize="44sp" />
 
         <TextView
+            android:id="@+id/gateMsg"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"

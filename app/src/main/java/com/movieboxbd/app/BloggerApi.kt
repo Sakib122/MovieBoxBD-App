@@ -238,6 +238,8 @@ object BloggerApi {
     private val Q_RE = Regex("(2160p|1080p|720p|480p|360p)", RegexOption.IGNORE_CASE)
     private val EP_RE = Regex("(?:\\bEP\\b|\\bE\\b|episode)[.\\s_-]*(\\d{1,4})", RegexOption.IGNORE_CASE)
     private val GENERIC_RE = Regex("^(AV[_-]?File[_-]?\\d+|AV\\d*|file\\d*|video\\d*)$", RegexOption.IGNORE_CASE)
+    /** ফুল/কমপ্লিট সিরিজ চেনার শব্দ (ফাইলনেম/টাইটেলে) */
+    private val FULL_RE = Regex("(full|complete|combo|all[.\\s_-]*ep|season[.\\s_-]*pack|s\\d{1,2}[.\\s_-]*full)", RegexOption.IGNORE_CASE)
 
     private fun findPoster(content: String): String? {
         val m = IMG_RE.find(content) ?: return null
@@ -245,31 +247,48 @@ object BloggerApi {
     }
 
     /**
-     * ফলব্যাক নাম:
-     *  ওয়েব সিরিজ → ফাইলনেমে EP থাকলে সেটা, নাহলে ক্রমিক
+     * ফলব্যাক নাম — 🔑 নিজের মতো EP1/EP2 বানানো যাবে না, ওয়েবসাইটের আসল ডাটাই দেখাবে:
+     *  ওয়েব সিরিজ → ফাইলনেমে আসল EP থাকলে সেটা (যেমন EP 81);
+     *              ফুল/কমপ্লিট থাকলে "ফুল সিরিজ (Full Complete)";
+     *              নাহলে ফাইলনেমটাই (আসল ডাটা)
      *  মুভি → ফাইলনেমে 720p/1080p থাকলে সেটা, নাহলে "ফুল মুভি"
      */
     private fun prettyName(streamUrl: String, series: Boolean, index: Int): String {
-        val q = Q_RE.find(streamUrl)?.value?.lowercase()
         return try {
             val path = streamUrl.substringBefore('?')
             var name = path.substringAfterLast('/')
             name = URLDecoder.decode(name, Charsets.UTF_8)
             name = name.substringBeforeLast('.')
+            val q = Q_RE.find(name)?.value?.lowercase()
             val ep = EP_RE.find(name)?.groupValues?.get(1)
 
             if (series) {
-                val epNum = ep ?: (index + 1).toString()
-                return if (q != null) "EP $epNum · $q" else "EP $epNum"
+                /* ফাইলনেমে আসল EP নাম্বার থাকলে সেটাই — বানানো নয় */
+                if (ep != null) return if (q != null) "EP $ep · $q" else "EP $ep"
+                /* ফুল/কমপ্লিট সিরিজ — ওয়েবসাইটের মতোই লেখা */
+                if (FULL_RE.containsMatchIn(name)) return "ফুল সিরিজ (Full Complete)"
+                /* নাহলে ফাইলনেমটাই আসল ডাটা হিসেবে দেখাও */
+                val clean = cleanFileName(name)
+                return if (clean.length >= 4 && !GENERIC_RE.matches(clean)) clean
+                else "ফুল সিরিজ (Full Complete)"
             }
             if (q != null) return q
-            if (GENERIC_RE.matches(name) || name.length < 4) {
-                return if (index == 0) "ফুল মুভি" else "ফুল মুভি ${index + 1}"
-            }
-            name
+            val clean = cleanFileName(name)
+            if (clean.length >= 4 && !GENERIC_RE.matches(clean)) clean else "ফুল মুভি"
         } catch (_: Exception) {
-            if (index == 0) "ফুল মুভি" else "ফুল মুভি ${index + 1}"
+            if (series) "ফুল সিরিজ (Full Complete)" else "ফুল মুভি"
         }
+    }
+
+    /** ফাইলনেম সুন্দর করে: Bachelor.Point.S05.720p → "Bachelor Point S05 720p" */
+    private fun cleanFileName(name: String): String {
+        var n = name.replace(Regex("[._]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        if (n.length > 48) {
+            n = n.take(48).substringBeforeLast(" ")
+        }
+        return n
     }
 
     /* ── HTML ইউটিলিটি ───────────────────────────────────────── */

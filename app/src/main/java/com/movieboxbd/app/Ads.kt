@@ -12,24 +12,36 @@ import android.webkit.WebViewClient
 /**
  * 💰 Adsterra অ্যাড — পুরোটা Config.kt থেকে চলে।
  *
- * ▶ প্লে ফ্লো (প্রতিবার):
- *   ১. প্লে চাপলেই সাথে সাথে Direct Link ব্রাউজারে খোলে
+ * ▶ অ্যাড গেট ফ্লো (৪টা বাটনেই — ▶ প্লে / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম):
+ *   ১. বাটন চাপলেই সাথে সাথে Direct Link ব্রাউজারে খোলে
+ *      (Direct Link ঘণ্টায় ঘণ্টায় বদলায় — Config.DIRECT_LINKS দেখো)
  *   ২. ইউজার অ্যাডে ~১০ সেকেন্ড থাকে
- *   ৩. ফিরে এলে বাকি সেকেন্ড থাকলে অ্যাপে কাউন্টডাউন — শেষ হলেই প্লে
- *   ৪. বাইপাস করা যাবে না (সময় পুরো না হলে প্লে হবে না)
+ *   ৩. ফিরে এলে বাকি সেকেন্ড থাকলে অ্যাপে কাউন্টডাউন — শেষ হলেই কাজটা হয়
+ *   ৪. বাইপাস করা যাবে না (সময় পুরো না হলে প্লে/ডাউনলোড হবে না)
  */
 object Ads {
+
+    /* ── গেটের অ্যাকশন টাইপ ── */
+    const val ACT_PLAY = 0
+    const val ACT_DOWNLOAD = 1
+    const val ACT_TELEGRAM = 2
+    const val ACT_BROWSER = 3
 
     private const val PREF = "mbx_ad"
     private const val K_TS = "gate_ts"
     private const val K_PEND = "gate_pending"
+    private const val K_TYPE = "gate_type"
     private const val K_URL = "gate_url"
+    private const val K_EXTRA = "gate_extra"
     private const val K_TITLE = "gate_title"
     private const val K_MOV = "movie_open_count"
 
-    /** Direct Link ব্রাউজারে খোলো */
+    /** গেট শেষ হলে যেটা করতে হবে */
+    data class PendingAction(val type: Int, val url: String, val title: String, val extra: String)
+
+    /** Direct Link ব্রাউজারে খোলো (ঘণ্টাভিত্তিক রোটেশন — CPM বাঁচাতে) */
     fun openDirectLink(ctx: Context) {
-        val url = Config.ADSTERRA_DIRECT_LINK
+        val url = Config.directLinkNow()
         if (url.isBlank()) return
         try {
             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -50,19 +62,26 @@ object Ads {
         }
     }
 
-    /** ▶ প্লে চাপলে ডাকো — Direct Link খুলে গেট চালু করে */
-    fun requestPlay(activity: Activity, url: String, title: String) {
+    /**
+     * যেকোনো বাটন চাপলে ডাকো — Direct Link খুলে গেট চালু করে।
+     *  type   = ACT_PLAY / ACT_DOWNLOAD / ACT_TELEGRAM / ACT_BROWSER
+     *  url    = অ্যাকশনের মূল লিংক (প্লে=স্ট্রিম, টেলিগ্রাম=t.me, ব্রাউজার=পেজ)
+     *  extra  = দরকার হলে বাড়তি লিংক (ডাউনলোডের ফলব্যাক স্ট্রিম লিংক)
+     */
+    fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = "") {
         val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         p.edit()
             .putLong(K_TS, System.currentTimeMillis())
             .putBoolean(K_PEND, true)
+            .putInt(K_TYPE, type)
             .putString(K_URL, url)
+            .putString(K_EXTRA, extra)
             .putString(K_TITLE, title)
             .apply()
         openDirectLink(activity)
     }
 
-    /** onResume-এ ডাকো — বাকি সেকেন্ড রিটার্ন করে; -1 মানে কোনো পেন্ডিং প্লে নেই; 0 মানে এখনই প্লে */
+    /** onResume-এ ডাকো — বাকি সেকেন্ড রিটার্ন করে; -1 মানে কোনো পেন্ডিং কাজ নেই; 0 মানে এখনই */
     fun pendingRemaining(activity: Activity): Int {
         val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         if (!p.getBoolean(K_PEND, false)) return -1
@@ -72,19 +91,21 @@ object Ads {
         return if (remain > 0) remain else 0
     }
 
-    /** গেট শেষ — পেন্ডিং প্লে নাও */
-    fun consume(activity: Activity): Pair<String, String>? {
+    /** গেট শেষ — পেন্ডিং অ্যাকশন নাও */
+    fun consume(activity: Activity): PendingAction? {
         val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        val type = p.getInt(K_TYPE, ACT_PLAY)
         val url = p.getString(K_URL, null) ?: return null
         val title = p.getString(K_TITLE, "MovieBoxBD") ?: "MovieBoxBD"
-        p.edit().putBoolean(K_PEND, false).remove(K_URL).apply()
-        return Pair(url, title)
+        val extra = p.getString(K_EXTRA, "") ?: ""
+        p.edit().putBoolean(K_PEND, false).remove(K_URL).remove(K_EXTRA).apply()
+        return PendingAction(type, url, title, extra)
     }
 
     /** ইউজার বাতিল করলে */
     fun cancelGate(activity: Activity) {
         activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .edit().putBoolean(K_PEND, false).remove(K_URL).apply()
+            .edit().putBoolean(K_PEND, false).remove(K_URL).remove(K_EXTRA).apply()
     }
 
     /** ব্যানার WebView-এ অ্যাড কোড বসায়; কোড না থাকলে জায়গাটা লুকায় */
