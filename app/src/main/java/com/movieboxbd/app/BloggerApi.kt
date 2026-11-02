@@ -9,12 +9,18 @@ import java.net.URLDecoder
 
 /**
  * Blogger-এর ফ্রি JSON API থেকে মুভির লিস্ট আনে।
- * ওয়েব সিরিজের লিংক → "Episode 1, Episode 2..." আর
- * মুভির ২টা ভার্সন থাকলে → "720p, 1080p" নামে দেখায়।
+ *
+ * 🔑 ওয়েবসাইটের আসল ডাটা পড়ে:
+ *  — ফাইল লিংকগুলো `data-link="..."` অ্যাট্রিবিউটে থাকে (ওয়েবসাইটের ডাউনলোড বাটনের ভেতরে)
+ *  — ওয়েব সিরিজের আসল এপিসোড নাম `mbd-ep-name` ট্যাগে (যেমন: EP 128) — নিজে নাম্বার বানায় না
+ *  — মুভির আসল কোয়ালিটি `mbd-dl-quality` ট্যাগে (যেমন: 720p WEB-DL) আর সাইজ `mbd-dl-meta`-তে
+ *  — স্ট্রিম লিংক = /watch/ বাদ দিলেই সরাসরি ভিডিও আসে (সার্ভারে লাইভ টেস্ট করা)
+ *  — ডাউনলোড = টেলিগ্রাম বটের লিংক: t.me/bot?start=file_<ID> (watch/ID থেকে)
  */
 object BloggerApi {
 
     private const val PAGE_SIZE = 20
+    private const val MAX_LINKS = 30
 
     /** এক পেজ মুভি আনো (label = ক্যাটাগরি, query = সার্চ, startIndex = কোথা থেকে) */
     fun load(label: String?, query: String?, startIndex: Int): FeedPage {
@@ -89,29 +95,132 @@ object BloggerApi {
         val date = if (published.length >= 10) published.substring(0, 10) else ""
 
         val isSeries = isWebSeries(title, labels)
-        val raw = ArrayList<String>()
-        for (m in URL_RE.findAll(content)) raw.add(m.value.trim())
-        val media = ArrayList<MediaLink>()
-        val seen = HashSet<String>()
-        var idx = 0
-        for (raw0 in raw) {
-            if (!raw0.contains("?hash=") && !raw0.contains("/watch/")) continue
-            val streamUrl = raw0.replace("/watch/", "/")
-            if (!seen.add(streamUrl)) continue
-            val name = prettyName(streamUrl, isSeries, idx)
-            media.add(MediaLink(name = name, streamUrl = streamUrl))
-            idx++
-            if (media.size >= 8) break
-        }
-
         return MovieItem(
             title = title,
             permalink = permalink,
             poster = findPoster(content),
             labels = labels,
             date = date,
-            links = media
+            links = parseLinks(content, isSeries)
         )
+    }
+
+    /* ── 🔗 লিংক পার্স (ওয়েবসাইটের আসল ডাটা) ─────────────────── */
+
+    /** ওয়েবসাইটের ডাউনলোড বাটনের ভেতরের লিংক: data-link="https://...koyeb.app/watch/..." */
+    private val DL_ATTR_RE = Regex("""data-link="([^"]+)"""")
+    /** এপিসোডের আসল নাম: <div class="mbd-ep-name">EP 128<span...> */
+    private val EP_NAME_RE = Regex("""mbd-ep-name">([^<]{1,100})""")
+    /** মুভির আসল কোয়ালিটি: <div class="mbd-dl-quality">720p WEB-DL</div> */
+    private val Q_LABEL_RE = Regex("""mbd-dl-quality">([^<]{1,100})""")
+    /** মুভির ভাষা/সাইজ: <div class="mbd-dl-meta">Hindi | 1.08 GB</div> */
+    private val META_RE = Regex("""mbd-dl-meta">([^<]{1,100})""")
+    /** পোস্টে সরাসরি দেওয়া টেলিগ্রাম ডাউনলোড লিংক */
+    private val TM_RE = Regex("""https://t\.me/[A-Za-z0-9_]+\?start=[^"'\s<>]+""")
+    /** /watch/1655/... → 1655 (টেলিগ্রাম বটের file_ID) */
+    private val WATCH_ID_RE = Regex("""/watch/(\d+)/""")
+    private val PATH_ID_RE = Regex("""/(\d+)/[^/]+\?hash=""")
+    /** ফলব্যাক: সাধারণ URL (ব্র্যাকেট-সহ ফাইলনেম যেন কাটা না পড়ে!) */
+    private val URL_RE = Regex("""https?://[^\s"'<>]+""", RegexOption.IGNORE_CASE)
+
+    private fun parseLinks(content: String, isSeries: Boolean): List<MediaLink> {
+        val media = ArrayList<MediaLink>()
+        val seen = HashSet<String>()
+
+        fun add(l: MediaLink?): Boolean {
+            if (l == null || media.size >= MAX_LINKS) return false
+            val key = l.streamUrl.ifBlank { l.tgUrl }
+            if (key.isEmpty() || !seen.add(key)) return false
+            media.add(l)
+            return true
+        }
+
+        /* ① ওয়েবসাইটের data-link (আসল ফাইল লিংক — প্রতিটার আগের ট্যাগ থেকে আসল নাম) */
+        for (m in DL_ATTR_RE.findAll(content)) {
+            val rawUrl = unescapeHtml(m.groupValues[1].trim())
+            if (!rawUrl.contains("koyeb.app") && !rawUrl.contains("?hash=")) continue
+            val winStart = maxOf(0, m.range.first - 200)
+            val isSeason = content.substring(winStart, m.range.first)
+                .contains("mbd-season-btn")
+            val label = if (isSeason) Triple("পুরো সিজন", null, null)
+            else labelBefore(content, m.range.first)
+            add(buildMediaLink(rawUrl, label, isSeries, media.size))
+        }
+
+        /* ② পোস্টে সরাসরি t.me ডাউনলোড লিংক থাকলে (ভবিষ্যতের পোস্টের জন্য) */
+        if (media.isNotEmpty()) {
+            for (m in TM_RE.findAll(content)) {
+                add(MediaLink(name = "⬇ টেলিগ্রাম ডাউনলোড", streamUrl = "", tgUrl = m.value.trim()))
+            }
+        }
+
+        /* ③ ফলব্যাক: পুরনো কাঠামো — সাধারণ URL স্ক্যান */
+        if (media.none { it.streamUrl.isNotBlank() }) {
+            for (m in URL_RE.findAll(content)) {
+                val u = cleanUrl(m.value.trim())
+                if (!u.contains("?hash=") && !u.contains("/watch/")) continue
+                add(buildMediaLink(u, Triple(null, null, null), isSeries, media.size))
+            }
+        }
+        return media
+    }
+
+    /** data-link-এর আগে সবচেয়ে কাছের এপিসোড-নাম / কোয়ালিটি / মেটা লেখা খোঁজে */
+    private fun labelBefore(content: String, pos: Int): Triple<String?, String?, String?> {
+        if (pos <= 0) return Triple(null, null, null)
+        val before = content.substring(0, pos)
+        val ep = EP_NAME_RE.findAll(before).lastOrNull()?.groupValues?.get(1)?.trim()
+        val q = Q_LABEL_RE.findAll(before).lastOrNull()?.groupValues?.get(1)?.trim()
+        val meta = META_RE.findAll(before).lastOrNull()?.groupValues?.get(1)?.trim()
+        return Triple(ep, q, meta)
+    }
+
+    /**
+     * একটা লিংক থেকে অ্যাপের মিডিয়া-লিংক বানায়:
+     *  ▶ স্ট্রিম  = /watch/ বাদ (সার্ভার তখন সরাসরি ভিডিও দেয় — লাইভ টেস্টেড)
+     *  🌐 পেজ    = /watch/ সহ (ওয়েবসাইটের ডাউনলোড পেজ)
+     *  ⬇ টেলিগ্রাম = t.me/bot?start=file_<watch-ID>
+     */
+    private fun buildMediaLink(
+        rawUrl: String,
+        label: Triple<String?, String?, String?>,
+        isSeries: Boolean,
+        index: Int
+    ): MediaLink? {
+        val streamUrl = rawUrl.replace("/watch/", "/")
+        if (!streamUrl.contains("?hash=")) return null
+
+        val id = WATCH_ID_RE.find(rawUrl)?.groupValues?.get(1)
+            ?: PATH_ID_RE.find(streamUrl)?.groupValues?.get(1)
+        val bot = Config.TELEGRAM_BOT_USERNAME
+        val tgUrl = if (bot.isNotBlank() && id != null) "https://t.me/$bot?start=file_$id" else ""
+
+        return MediaLink(
+            name = realName(label, streamUrl, isSeries, index),
+            streamUrl = streamUrl,
+            pageUrl = rawUrl,
+            tgUrl = tgUrl
+        )
+    }
+
+    /** ওয়েবসাইটের আসল নাম — না পেলে ফাইলনেম থেকে সুন্দর নাম */
+    private fun realName(
+        label: Triple<String?, String?, String?>,
+        streamUrl: String,
+        isSeries: Boolean,
+        index: Int
+    ): String {
+        val (ep, quality, meta) = label
+        /* ওয়েব সিরিজ → ওয়েবসাইটের আসল এপিসোড নাম (যেমন "EP 128") */
+        if (!ep.isNullOrBlank()) return ep
+        /* মুভি → ওয়েবসাইটের আসল কোয়ালিটি + সাইজ (যেমন "720p WEB-DL · 1.08 GB") */
+        if (!quality.isNullOrBlank()) {
+            val size = meta?.split("|")?.lastOrNull()?.trim()
+            return if (!size.isNullOrBlank() && size.any { it.isDigit() })
+                "$quality  ·  $size" else quality
+        }
+        /* না পেলে ফাইলনেম থেকে */
+        return prettyName(streamUrl, isSeries, index)
     }
 
     /** এই পোস্টটা কি ওয়েব সিরিজ? (লেবেল বা টাইটেল দেখে) */
@@ -126,7 +235,6 @@ object BloggerApi {
     /* ── পোস্টের HTML থেকে পোস্টার ───────────────────────────── */
 
     private val IMG_RE = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
-    private val URL_RE = Regex("https?://[^\\s\"'<>()]+", RegexOption.IGNORE_CASE)
     private val Q_RE = Regex("(2160p|1080p|720p|480p|360p)", RegexOption.IGNORE_CASE)
     private val EP_RE = Regex("(?:\\bEP\\b|\\bE\\b|episode)[.\\s_-]*(\\d{1,4})", RegexOption.IGNORE_CASE)
     private val GENERIC_RE = Regex("^(AV[_-]?File[_-]?\\d+|AV\\d*|file\\d*|video\\d*)$", RegexOption.IGNORE_CASE)
@@ -137,10 +245,9 @@ object BloggerApi {
     }
 
     /**
-     * লিংকের সুন্দর নাম বানায়:
-     *  ওয়েব সিরিজ → "Episode 1", "Episode 121 · 720p"
-     *  মুভি 720p/1080p থাকলে → "720p", "1080p"
-     *  নাহলে → "ফুল মুভি", "ফুল মুভি ২"
+     * ফলব্যাক নাম:
+     *  ওয়েব সিরিজ → ফাইলনেমে EP থাকলে সেটা, নাহলে ক্রমিক
+     *  মুভি → ফাইলনেমে 720p/1080p থাকলে সেটা, নাহলে "ফুল মুভি"
      */
     private fun prettyName(streamUrl: String, series: Boolean, index: Int): String {
         val q = Q_RE.find(streamUrl)?.value?.lowercase()
@@ -153,7 +260,7 @@ object BloggerApi {
 
             if (series) {
                 val epNum = ep ?: (index + 1).toString()
-                return if (q != null) "Episode $epNum · $q" else "Episode $epNum"
+                return if (q != null) "EP $epNum · $q" else "EP $epNum"
             }
             if (q != null) return q
             if (GENERIC_RE.matches(name) || name.length < 4) {
@@ -163,6 +270,24 @@ object BloggerApi {
         } catch (_: Exception) {
             if (index == 0) "ফুল মুভি" else "ফুল মুভি ${index + 1}"
         }
+    }
+
+    /* ── HTML ইউটিলিটি ───────────────────────────────────────── */
+
+    private fun unescapeHtml(s: String): String = s
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+
+    /** URL-এর শেষে ঝুলে থাকা অপ্রয়োজনীয় ব্র্যাকেট/চিহ্ন ছাঁটে */
+    private fun cleanUrl(u0: String): String {
+        var u = unescapeHtml(u0)
+        while (u.endsWith(")") && u.count { it == '(' } < u.count { it == ')' }) u = u.dropLast(1)
+        while (u.endsWith(",") || u.endsWith(".") || u.endsWith(";")) u = u.dropLast(1)
+        return u
     }
 
     /* ── HTTP GET ───────────────────────────────────────────── */
