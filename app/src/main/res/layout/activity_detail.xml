@@ -108,6 +108,16 @@
                     android:textColor="@color/textMain"
                     android:textSize="15sp" />
 
+                <!-- ✈️ টেলিগ্রাম চ্যানেল — চোখে পড়ে এমন জায়গায়, জয়েন করলেই নতুন মুভির আপডেট পাবে -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnTgChannel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="✈️ টেলিগ্রাম চ্যানেলে জয়েন করো — নতুন মুভির আপডেট সবার আগে"
+                    android:textSize="13sp"
+                    app:backgroundTint="#2293DC" />
+
                 <!-- 📼 স্ট্রিম লিংক না থাকলে এই সুন্দর কার্ডটা দেখাবে — ওয়েবসাইটে যাওয়ার বাটনসহ -->
                 <LinearLayout
                     android:id="@+id/noVideoNote"
@@ -150,6 +160,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:text="🌐 ওয়েবসাইটে গিয়ে দেখো" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnNoteTg"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="✈️ টেলিগ্রাম চ্যানেলে জয়েন করো"
+                        app:backgroundTint="#2293DC" />
                 </LinearLayout>
 
                 <androidx.recyclerview.widget.RecyclerView

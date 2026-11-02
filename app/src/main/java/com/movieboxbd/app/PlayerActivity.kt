@@ -1,10 +1,14 @@
 package com.movieboxbd.app
 
+import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -22,6 +26,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -31,6 +36,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -40,26 +46,26 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * ▶ MX Player স্টাইলের প্লেয়ার v4 (২.৩):
+ * ▶ MX Player স্টাইলের প্লেয়ার v5 (২.৪):
+ *  — ✅ মেনু বাটনগুলো (🔒/1x/🎧/💬/⛶) এখন উল্লম্ব পিল —
+ *     ল্যান্ডস্কেপে বাঁ কিনারে, পোর্ট্রেটে ডান কিনারে — মুভি আর কোনোদিন ঢাকা পড়ে না
  *  — ✅ প্লে/পজ এক বাটনে (exo_play_pause) — Media3 নিজেই আইকন বদলায় ও ক্লিক ধরে
- *  — ✅ ফুল ইমারসিভ: স্ট্যাটাস/নেভিগেশন বার উঠে এলে আবার লুকিয়ে দেওয়া হয়,
- *     আর কন্ট্রোল বারে ইনসেট প্যাডিং — তাই বাটন কখনো নেভবারের নিচে চাপা পড়বে না
  *  — ✅ MX-এর মতো টেনে সিক: টানতে থাকলে শুধু সময় দেখায়, ছাড় দিলে একবার সিক হয়
- *     (আগে প্রতি নড়াচড়ায় seekTo হচ্ছিল — তাই ০ সেকেন্ডে লাফিয়ে ফিরে আসত)
  *  — ✅ বাঁ পাশে উপর-নিচ = ☀️ ব্রাইটনেস, ডান পাশে উপর-নিচ = 🔊 ভলিউম
- *  — ✅ ⛶ স্ক্রিন মোড: ফিট → জুম (পুরো স্ক্রিন ভরে) → টানাটানি → ফিট
- *  — 🎧 অডিও ট্র্যাক: ভাষার ইংরেজি নাম (Hindi/Tamil/Bangla/Telugu…) +
- *     ফাইলের ভেতরের ক্রেডিট (MovieLinkBD.one…) সরিয়ে MovieBoxBD বসে
- *  — 💬 সাবটাইটেল অন/অফ, ⚡ স্পিড, 🔓 লক (আনলক উপরের কোণায়)
- *  — ভিডিও অনুযায়ী অটো ল্যান্ডস্কেপ/পোর্ট্রেট + রোটেট বাটন
- *  — ধীর সার্ভার হলেও অপেক্ষা করে (৩০ সেকেন্ড টাইমআউট) + আবার চেষ্টা বাটন
+ *  — 🎧 অডিও ট্র্যাক: ভাষার পুরো নাম (Hindi/Tamil/Bangla/Telugu…) —
+ *     ফাইলের ভেতরের ক্রেডিট (Encoder By: CineDoze.TV…) কখনোই দেখানো হয় না
+ *  — 🔊 সব ফোনে সাউন্ড: এই ফোনে EAC3/DDP5.1 না চললে থাকা অন্য সাপোর্টেড ট্র্যাকে
+ *     অটো-সুইচ (আগে সরাসরি সাউন্ড বন্ধ হয়ে যেত)
+ *  — 🔄 স্ট্রিম ফেল হলে ৩ বার অটো-রিট্রাই (koyeb ঠান্ডা হলেও ধরে ফেলে),
+ *     শেষে রিট্রাই + টেলিগ্রাম চ্যানেল বাটন
+ *  — 💬 সাবটাইটেল অন/অফ, ⚡ স্পিড, 🔓 লক (আনলক উপরের কোণায়), ⛶ স্ক্রিন মোড
  */
 class PlayerActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private var audioDisabled = false
     private var subsDisabled = false
-    private var retried = false
+    private var retryCount = 0
     private var url: String = ""
     private var title: String = ""
 
@@ -67,6 +73,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var gestureHint: TextView
     private lateinit var errorBox: View
     private lateinit var errText: TextView
+    private lateinit var btnErrTg: View
     private lateinit var mxBar: LinearLayout
     private lateinit var btnMLock: TextView
     private lateinit var btnMUnlock: TextView
@@ -78,6 +85,12 @@ class PlayerActivity : AppCompatActivity() {
     private var started = false
     private var locked = false
     private var controllerVisible = false
+    /* অডিও কম্প্যাট: READY হলেই একবার চেক (ইউজার নিজে বাছলে আর নাক গলানো হয় না) */
+    private var audioChecked = false
+    private var audioFallbackDone = false
+    /* ল্যান্ডস্কেপে কাটআউট বাঁ/ডান দিকে থাকে — mxBar-এর মার্জিনে যোগ হয় */
+    private var cutLeft = 0
+    private var cutRight = 0
 
     private val SPEEDS = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
     private val SPEED_LABELS = arrayOf("0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x")
@@ -144,6 +157,7 @@ class PlayerActivity : AppCompatActivity() {
         gestureHint = findViewById(R.id.gestureHint)
         errorBox = findViewById(R.id.errorBox)
         errText = findViewById(R.id.errText)
+        btnErrTg = findViewById(R.id.btnErrTg)
         mxBar = findViewById(R.id.mxBar)
         btnMLock = findViewById(R.id.btnMLock)
         btnMUnlock = findViewById(R.id.btnMUnlock)
@@ -155,6 +169,7 @@ class PlayerActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.pTitle).text = title
         findViewById<ImageButton>(R.id.btnPBack).setOnClickListener { finish() }
         findViewById<View>(R.id.btnRetry).setOnClickListener { retry() }
+        btnErrTg.setOnClickListener { openTelegramChannel() }
         findViewById<ImageButton>(R.id.btnPRotate).setOnClickListener {
             requestedOrientation =
                 if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
@@ -177,10 +192,10 @@ class PlayerActivity : AppCompatActivity() {
             btnMUnlock.layoutParams = (btnMUnlock.layoutParams as android.widget.FrameLayout.LayoutParams).also {
                 it.topMargin = 10 + top
             }
-            /* mxBar-ও নেভবার + কন্ট্রোল বারের উপরে উঠে থাকবে */
-            mxBar.layoutParams = (mxBar.layoutParams as android.widget.FrameLayout.LayoutParams).also {
-                it.bottomMargin = 116 + bottom
-            }
+            /* ল্যান্ডস্কেপে কাটআউট বাঁ/ডান দিকে — mxBar-এর পাশের মার্জিনে যোগ হয় */
+            cutLeft = max(bars.left, cut.left)
+            cutRight = max(bars.right, cut.right)
+            positionMxBar()
             /* স্ট্যাটাস/নেভিগেশন বার স্থায়ীভাবে ফিরে এলে আবার লুকাও */
             if (insets.isVisible(WindowInsetsCompat.Type.systemBars())) hideSystemBars()
             WindowInsetsCompat.CONSUMED
@@ -218,6 +233,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         })
 
+        positionMxBar() /* ল্যান্ডস্কেপে সরাসরি খুললেও সাথে সাথে ঠিক পাশে বসবে */
         setupGestures()
         buildPlayer()
     }
@@ -226,6 +242,41 @@ class PlayerActivity : AppCompatActivity() {
         val c = WindowCompat.getInsetsController(window, window.decorView)
         c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         c.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    /* ── 📍 mxBar-এর অবস্থান: ল্যান্ডস্কেপে বাঁ কিনারে, পোর্ট্রেটে ডান কিনারে ──
+     *  উল্লম্ব পিল হওয়ায় মাঝখানের প্লে/পজ বাটন বা মুভি কখনো ঢাকা পড়ে না */
+    private fun positionMxBar() {
+        val land = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val lp = mxBar.layoutParams as android.widget.FrameLayout.LayoutParams
+        lp.gravity = Gravity.CENTER_VERTICAL or if (land) Gravity.START else Gravity.END
+        if (land) {
+            lp.marginStart = dp(8) + cutLeft
+            lp.marginEnd = 0
+        } else {
+            lp.marginStart = 0
+            lp.marginEnd = dp(8) + cutRight
+        }
+        mxBar.layoutParams = lp
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        positionMxBar()
+        hideSystemBars()
+    }
+
+    /* ── ✈️ টেলিগ্রাম চ্যানেল (Config.TELEGRAM_URL) ── */
+    private fun openTelegramChannel() {
+        val url = Config.TELEGRAM_URL
+        if (url.isBlank()) return
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            Toast.makeText(this, "✈️ টেলিগ্রাম চ্যানেল খুলছে…", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+        }
     }
 
     /* ── 🔒 স্ক্রিন লক / আনলক ───────────────────────────────── */
@@ -260,34 +311,96 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
-    /* ── 🎧 অডিও ট্র্যাক (ইংরেজি ভাষার নাম + ক্রেডিট বাদ) ─────── */
+    /* ── 🎧 অডিও ট্র্যাক (ভাষার পুরো নাম — ফাইলের ক্রেডিট কখনো দেখাবেই না) ── */
 
-    /** ফাইলের ভেতরের লেবেল থেকে ক্রেডিট (MovieLinkBD.one …) সরিয়ে পরিষ্কার করে */
-    private fun cleanLabel(raw: String?): String? {
-        var s = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        s = s.replace(Regex("(?i)movie\\s*link\\s*bd(\\s*\\.\\s*(one|com|net|org|xyz|info))?"), "MovieBoxBD")
-        s = s.replace(Regex("(?i)movie\\s*box\\s*bd(\\s*\\.\\s*(one|com|net|org|xyz|info))?"), "MovieBoxBD")
-        s = s.replace("|", " ").replace(Regex("\\s+"), " ").trim()
-        s = s.replace(Regex("^[•\\-–—_\\s]+"), "").replace(Regex("[•\\-–—_\\s]+$"), "")
-        return s.ifBlank { null }
+    /** এই ফোনে ওই ট্র্যাকের কোডেক আছে কি না: true/false; জানা না গেলে null */
+    private fun trackSupported(g: Tracks.Group): Boolean? {
+        return try {
+            val f = g.getTrackFormat(0)
+            val mime = f.sampleMimeType ?: return null
+            if (!MimeTypes.isAudio(mime)) return null
+            val info = MediaCodecUtil.getDecoderInfo(mime, false, false) ?: return false
+            info.isFormatSupported(f)
+        } catch (_: Exception) {
+            null
+        }
     }
 
-    private fun audioRowLabel(g: Tracks.Group): String {
-        for (i in 0 until g.length) {
-            val f = g.getTrackFormat(i)
-            val langCode = f.language?.trim()?.lowercase()?.substringBefore('-')
-            val langName = langCode?.let { LANG_NAMES[it] }
-            /* ভাষার কোড চেনা গেলে ইংরেজি নাম — নাহলে লেবেল (ক্রেডিট সরিয়ে) */
-            val base = langName ?: cleanLabel(f.label) ?: "অডিও ট্র্যাক"
-            val ch = when (f.channelCount) {
-                1 -> "মোনো"; 2 -> "স্টেরিও"; 6 -> "5.1"; 8 -> "7.1"; else -> null
-            }
-            val bits = ArrayList<String>()
-            bits.add(base)
-            if (ch != null) bits.add(ch)
-            return bits.joinToString("  •  ")
+    /** ট্র্যাকের নাম = ভাষার ইংরেজি নাম (Hindi/Tamil/Bangla/Telugu…)।
+     *  ভাষা না জানা গেলে "অডিও N"। ফাইলের ভেতরের রমরমা লেবেল
+     *  (Encoder By: …, CineDoze.TV …) কখনোই দেখানো হবে না — ক্রেডিট শূন্য। */
+    private fun audioRowLabel(g: Tracks.Group, idx: Int): String {
+        val f = g.getTrackFormat(0)
+        val langCode = f.language?.trim()?.lowercase()?.substringBefore('-')
+        val base = langCode?.let { LANG_NAMES[it] } ?: "অডিও ${idx + 1}"
+        val ch = when (f.channelCount) {
+            1 -> "মোনো"; 2 -> "স্টেরিও"; 6 -> "5.1"; 8 -> "7.1"; else -> null
         }
-        return "অডিও ট্র্যাক"
+        val bits = ArrayList<String>()
+        bits.add(base)
+        if (ch != null) bits.add(ch)
+        if (trackSupported(g) == false) bits.add("⚠️ এই ফোনে চলবে না")
+        return bits.joinToString("  •  ")
+    }
+
+    /* ── 🔊 সব ফোনে সাউন্ড চলার ব্যবস্থা ──────────────────────
+     *  অনেক ফোনে EAC3/DDP5.1 (Dolby) কোডেক থাকে না — আগে তখন সরাসরি সাউন্ড
+     *  বন্ধ হয়ে যেত। এখন প্লে শুরুর সাথে সাথেই চেক করে: সিলেক্ট করা ট্র্যাক
+     *  এই ফোনে না চললে থাকা অন্য সাপোর্টেড ট্র্যাকে (AAC/MP3…) নিজে থেকেই সুইচ করে। */
+    private fun ensureAudioCompat() {
+        val p = player ?: return
+        if (audioChecked || audioDisabled || audioPick != -1) return
+        audioChecked = true
+        try {
+            val groups = p.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+            if (groups.isEmpty()) return
+            val sel = groups.firstOrNull { it.isSelected } ?: return
+            if (trackSupported(sel) != false) return
+            val alt = groups.filter { it !== sel }.firstOrNull { trackSupported(it) == true }
+            if (alt != null) {
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                    .addOverride(TrackSelectionOverride(alt.mediaTrackGroup, 0))
+                    .build()
+                audioPick = groups.indexOf(alt) + 1
+                Toast.makeText(
+                    this,
+                    "🎧 এই ফোনে ওই সাউন্ড ফরম্যাট চলে না — অন্য অডিও ট্র্যাক চালু করা হলো",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                audioDisabled = true
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                    .build()
+                Toast.makeText(
+                    this,
+                    "🔇 এই ফোনে ওই সাউন্ড ফরম্যাট সাপোর্ট নেই — ছবি চলছে (ডাউনলোড করে MX Player-এ চালালে সাউন্ড আসবে)",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    /** এরর হলে: অন্য সাপোর্টেড অডিও ট্র্যাক থাকলে সেটায় সুইচ (সাউন্ড বাঁচায়) */
+    private fun tryAudioFallback(): Boolean {
+        val p = player ?: return false
+        return try {
+            val groups = p.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+            val alt = groups.firstOrNull { !it.isSelected && trackSupported(it) == true }
+                ?: return false
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                .addOverride(TrackSelectionOverride(alt.mediaTrackGroup, 0))
+                .build()
+            audioPick = groups.indexOf(alt) + 1
+            Toast.makeText(this, "🎧 সাউন্ড অন্য অডিও ট্র্যাকে চালু করা হলো", Toast.LENGTH_LONG).show()
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun showAudioDialog() {
@@ -300,8 +413,13 @@ class PlayerActivity : AppCompatActivity() {
 
         val items = ArrayList<String>()
         items.add("অটো (ডিফল্ট)")
+        /* একই নামের ট্র্যাক ২টা হলে "ট্র্যাক ২" যোগ হয় — দুটো আলাদা বোঝা যায় */
+        val dup = HashMap<String, Int>()
         for ((i, g) in groups.withIndex()) {
-            items.add("${i + 1}. ${audioRowLabel(g)}")
+            val l = audioRowLabel(g, i)
+            val n = (dup[l] ?: 0) + 1
+            dup[l] = n
+            items.add(if (n > 1) "$l · ট্র্যাক $n" else l)
         }
 
         /* সুন্দর কাস্টম লিস্ট — বাছাই করা ট্র্যাকে ● বসবে, সব লেখা স্পষ্ট দেখা যাবে */
@@ -381,6 +499,9 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun buildPlayer() {
         errorBox.visibility = View.GONE
+        retryCount = 0
+        audioChecked = false
+        audioFallbackDone = false
 
         val tsel = DefaultTrackSelector(this)
         var pb = tsel.buildUponParameters()
@@ -392,7 +513,7 @@ class PlayerActivity : AppCompatActivity() {
             .setConnectTimeoutMs(30_000)
             .setReadTimeoutMs(30_000)
             .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("Mozilla/5.0 (Linux; Android) MovieBoxBD/2.3")
+            .setUserAgent("Mozilla/5.0 (Linux; Android) MovieBoxBD/2.4")
 
         player = ExoPlayer.Builder(this, DefaultRenderersFactory(this).setEnableDecoderFallback(true))
             .setMediaSourceFactory(DefaultMediaSourceFactory(dsFactory))
@@ -416,9 +537,13 @@ class PlayerActivity : AppCompatActivity() {
         player?.playWhenReady = true
         player?.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY && !started) {
-                    started = true
-                    player?.play()
+                if (state == Player.STATE_READY) {
+                    if (!started) {
+                        started = true
+                        player?.play()
+                    }
+                    /* 🔊 এই ফোনে সাউন্ড না চললে অন্য ট্র্যাকে অটো-সুইচ */
+                    ensureAudioCompat()
                 }
                 if (state == Player.STATE_ENDED) finish()
             }
@@ -439,7 +564,9 @@ class PlayerActivity : AppCompatActivity() {
         player?.prepare()
     }
 
-    /* ── এরর হ্যান্ডলিং: একবার অটো-রিট্রাই, নাহলে রিট্রাই বাটন ──── */
+    /* ── এরর হ্যান্ডলিং: ৩ বার অটো-রিট্রাই (koyeb ঠান্ডা হলেও ধরে ফেলে), নাহলে বাটন ── */
+
+    private val autoRetry = Runnable { prepareAgain() }
 
     private fun handle(error: PlaybackException) {
         val code = error.errorCode
@@ -449,21 +576,45 @@ class PlayerActivity : AppCompatActivity() {
                 code == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
                 code == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
 
-        if (audioIssue && !audioDisabled) {
-            audioDisabled = true
-            Toast.makeText(this, "🔇 এই ফোনে ওই সাউন্ড ফরম্যাট সাপোর্ট নেই — ছবি চলছে", Toast.LENGTH_LONG).show()
-            restartPlayer()
-        } else if (!retried) {
-            retried = true
-            ui.postDelayed({ retry() }, 2500)
+        if (audioIssue) {
+            /* ১ম চেষ্টা: অন্য সাপোর্টেড অডিও ট্র্যাকে সুইচ (সাউন্ড বাঁচাও) */
+            if (!audioFallbackDone && tryAudioFallback()) {
+                audioFallbackDone = true
+                return
+            }
+            /* না হলে: সাউন্ড বন্ধ করে ছবি চালাও (ক্র্যাশ হয় না) */
+            if (!audioDisabled) {
+                audioDisabled = true
+                Toast.makeText(
+                    this,
+                    "🔇 এই ফোনে ওই সাউন্ড ফরম্যাট সাপোর্ট নেই — ছবি চলছে",
+                    Toast.LENGTH_LONG
+                ).show()
+                restartPlayer()
+            }
+            return
+        }
+
+        if (retryCount < 3) {
+            retryCount++
+            started = false
+            errorBox.visibility = View.VISIBLE
+            findViewById<View>(R.id.btnRetry).visibility = View.GONE
+            btnErrTg.visibility = View.GONE
+            errText.text = "🔄 সার্ভার জাগছে — আবার চেষ্টা চলছে… ($retryCount/৩)\nবড় ফাইল হলে একটু সময় লাগে"
+            ui.removeCallbacks(autoRetry)
+            val delay = when (retryCount) { 1 -> 2500L; 2 -> 5000L; else -> 8000L }
+            ui.postDelayed(autoRetry, delay)
         } else {
             started = false
-            errText.text = "⚠️ লোড হচ্ছে না — সার্ভার ব্যস্ত থাকতে পারে"
-            errorBox.visibility = View.VISIBLE
+            errText.text = "⚠️ লোড হচ্ছে না — সার্ভার ব্যস্ত থাকতে পারে\n\nএকটু পরে আবার চেষ্টা করো, অথবা নিচের বাটনে চাপো"
+            findViewById<View>(R.id.btnRetry).visibility = View.VISIBLE
+            btnErrTg.visibility = View.VISIBLE
         }
     }
 
-    private fun retry() {
+    /** একই লিংকে আবার prepare — retryCount রিসেট হয় না (অটো-রিট্রাই এটাই ডাকে) */
+    private fun prepareAgain() {
         errorBox.visibility = View.GONE
         val p = player
         if (p != null) {
@@ -473,6 +624,13 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             buildPlayer()
         }
+    }
+
+    /** ইউজারের হাতে রিট্রাই — চেষ্টার কাউন্ট নতুন করে শুরু */
+    private fun retry() {
+        retryCount = 0
+        ui.removeCallbacks(autoRetry)
+        prepareAgain()
     }
 
     private fun restartPlayer() {

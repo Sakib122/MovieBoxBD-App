@@ -1,7 +1,9 @@
 package com.movieboxbd.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -116,6 +118,16 @@ class MainActivity : AppCompatActivity() {
                 R.id.navHome -> { homeLoaded = false; loadHome(true) }
                 R.id.navSearch -> doSearch()
                 else -> load(true)
+            }
+        }
+
+        /* ✈️ টেলিগ্রাম চ্যানেল — হোম টুলবারে চোখে পড়ে এমন জায়গায় */
+        findViewById<View>(R.id.btnTgIcon).setOnClickListener {
+            if (Config.TELEGRAM_URL.isBlank()) return@setOnClickListener
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Config.TELEGRAM_URL)))
+                Toast.makeText(this, "✈️ টেলিগ্রাম চ্যানেল খুলছে…", Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {
             }
         }
 

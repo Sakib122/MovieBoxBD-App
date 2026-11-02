@@ -21,6 +21,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * ডিটেইল পেজ v3:
@@ -95,6 +97,13 @@ class DetailActivity : AppCompatActivity() {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(m.permalink.ifBlank { Config.SITE })))
             } catch (_: Exception) {}
         }
+
+        /* ✈️ টেলিগ্রাম চ্যানেল — ডিটেইল পেজে + নো-ভিডিও কার্ডে */
+        findViewById<View>(R.id.btnTgChannel).setOnClickListener { openChannel() }
+        findViewById<View>(R.id.btnNoteTg).setOnClickListener { openChannel() }
+
+        /* 🔥 সার্ভার আগে থেকে জাগানো — koyeb ঠান্ডা হলেও প্লে চাপলে স্ট্রিম দ্রুত আসে */
+        m.links.firstOrNull { it.streamUrl.isNotBlank() }?.streamUrl?.let { preWarm(it) }
 
         /* ব্যানার অ্যাড (তোমার Adsterra কোড) */
         Ads.applyBanner(findViewById(R.id.adBanner), Config.ADSTERRA_BANNER_320x50)
@@ -279,6 +288,38 @@ class DetailActivity : AppCompatActivity() {
                 Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
             }
         }
+    }
+
+    /* ── ✈️ টেলিগ্রাম চ্যানেল (t.me/SakibMovieBox) ── */
+
+    private fun openChannel() {
+        if (Config.TELEGRAM_URL.isBlank()) return
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Config.TELEGRAM_URL)))
+            Toast.makeText(this, "✈️ টেলিগ্রাম চ্যানেল খুলছে…", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+        }
+    }
+
+    /** ডিটেইল পেজ খুললেই ব্যাকগ্রাউন্ডে সার্ভারে হালকা রিকোয়েস্ট — koyeb ঘুম থেকে
+     *  জেগে ওঠে, তাই অ্যাড শেষে প্লে চাপলে স্ট্রিম সাথে সাথেই আসে (লোড-ফেল কমায়) */
+    private fun preWarm(url: String) {
+        Thread {
+            var c: HttpURLConnection? = null
+            try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                c = conn
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("Range", "bytes=0-1")
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
+                conn.responseCode
+                conn.inputStream?.close()
+            } catch (_: Exception) {
+            } finally {
+                c?.disconnect()
+            }
+        }.start()
     }
 
     /* ── ✈ টেলিগ্রাম বট (আসল ফাইল লিংক: t.me/bot?start=file_ID) ── */

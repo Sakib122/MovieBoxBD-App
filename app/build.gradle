@@ -9,10 +9,12 @@ android {
 
     defaultConfig {
         applicationId "com.movieboxbd.app"
-        minSdk 26
+        /* minSdk 21 (Android 5.0+) — পুরনো ফোনগুলোও (Samsung/Vivo/Oppo/Realme…) অ্যাপটা
+           ইনস্টল করতে পারবে; Media3/ExoPlayer-ও 21 থেকেই চলে */
+        minSdk 21
         targetSdk 34
-        versionCode 4
-        versionName "2.3"
+        versionCode 5
+        versionName "2.4"
     }
 
     buildTypes {

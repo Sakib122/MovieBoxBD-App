@@ -22,6 +22,34 @@ object BloggerApi {
     private const val PAGE_SIZE = 20
     private const val MAX_LINKS = 30
 
+    /* ── 🔒 ক্রেডিট স্ক্রাবার ──────────────────────────────────────────
+     *  ব্লগের নাম/টাইটেল কোথাও যদি অন্য কারো ক্রেডিট ঝুলে থাকে
+     *  (Encoder By: CineDoze.TV / Included By … / Movie Link BD.one …) —
+     *  ইউজারের চোখে পড়ার আগেই মুছে MovieBoxBD বসিয়ে দেয়। প্রতিটা
+     *  ইউজার-দৃশ্যমান নাম এই ফাংশন দিয়ে যায়। */
+    private val CREDIT_SEP_RE = Regex(
+        """(?i)\b(encoder|encoded|include|included|rip|ripped|ripper|rippers|upload|uploaded|credit|credits|presented|shared|distributed)\b\s*(by)?\s*[:：\-–—]\s*[^\n|<>"\[\]]{0,42}"""
+    )
+    private val CREDIT_WORD_BY_RE = Regex(
+        """(?i)\b(encoder|encoded|include|included|rip|ripped|ripper|rippers|upload|uploaded|credit|credits|presented|shared|distributed)\b\s+by\s+[^\n|<>"\[\]]{0,42}"""
+    )
+    private val DOMAIN_RE = Regex(
+        """(?i)\b[a-z0-9][a-z0-9_\-]{1,28}\.(tv|xyz|site|online|club|icu|cyou|top|buzz|pro|info|shop|store|live|fun|cfd)\b"""
+    )
+    private val MOVIELINK_RE = Regex(
+        """(?i)movie\s*link\s*bd(\s*\.\s*(one|com|net|org|xyz|info))?"""
+    )
+
+    fun scrub(s0: String): String {
+        if (s0.isBlank()) return s0
+        var s = s0
+        s = s.replace(CREDIT_BY_RE, "MovieBoxBD")
+        s = s.replace(DOMAIN_RE, "MovieBoxBD")
+        s = s.replace(MOVIELINK_RE, "MovieBoxBD")
+        s = s.replace(Regex("\\s{2,}"), " ").trim()
+        return s
+    }
+
     /** এক পেজ মুভি আনো (label = ক্যাটাগরি, query = সার্চ, startIndex = কোথা থেকে) */
     fun load(label: String?, query: String?, startIndex: Int): FeedPage {
         return load(label, query, startIndex, null)
@@ -68,7 +96,7 @@ object BloggerApi {
     }
 
     private fun parseEntry(e: JSONObject): MovieItem? {
-        val title = e.optJSONObject("title")?.optString("\$t")?.trim().orEmpty()
+        val title = scrub(e.optJSONObject("title")?.optString("\$t")?.trim().orEmpty())
         val content = e.optJSONObject("content")?.optString("\$t").orEmpty()
         if (title.isEmpty() || content.isEmpty()) return null
 
@@ -212,12 +240,14 @@ object BloggerApi {
     ): String {
         val (ep, quality, meta) = label
         /* ওয়েব সিরিজ → ওয়েবসাইটের আসল এপিসোড নাম (যেমন "EP 128") */
-        if (!ep.isNullOrBlank()) return ep
+        if (!ep.isNullOrBlank()) return scrub(ep)
         /* মুভি → ওয়েবসাইটের আসল কোয়ালিটি + সাইজ (যেমন "720p WEB-DL · 1.08 GB") */
         if (!quality.isNullOrBlank()) {
             val size = meta?.split("|")?.lastOrNull()?.trim()
-            return if (!size.isNullOrBlank() && size.any { it.isDigit() })
-                "$quality  ·  $size" else quality
+            return scrub(
+                if (!size.isNullOrBlank() && size.any { it.isDigit() })
+                    "$quality  ·  $size" else quality
+            )
         }
         /* না পেলে ফাইলনেম থেকে */
         return prettyName(streamUrl, isSeries, index)
@@ -254,6 +284,10 @@ object BloggerApi {
      *  মুভি → ফাইলনেমে 720p/1080p থাকলে সেটা, নাহলে "ফুল মুভি"
      */
     private fun prettyName(streamUrl: String, series: Boolean, index: Int): String {
+        return scrub(prettyNameRaw(streamUrl, series, index))
+    }
+
+    private fun prettyNameRaw(streamUrl: String, series: Boolean, index: Int): String {
         return try {
             val path = streamUrl.substringBefore('?')
             var name = path.substringAfterLast('/')

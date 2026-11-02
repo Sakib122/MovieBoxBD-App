@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MX মেনুর উল্লম্ব পিল — কোমল গ্রেডিয়েন্ট, বর্ডার নেই (বাটনগুলোর নিজের গোল ব্যাকগ্রাউন্ড আছে) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="90"
+        android:startColor="#E6181C2E"
+        android:endColor="#A6181C2E" />
+    <corners android:radius="27dp" />
+</shape>
