@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MovieBoxBD</string>
+    <string name="play">▶ প্লে</string>
+    <string name="download">⬇ ডাউনলোড</string>
+    <string name="telegram">✈️ টেলিগ্রাম চ্যানেল</string>
+    <string name="open_web">🌐 ওয়েবসাইটে বিস্তারিত</string>
+    <string name="retry">🔄 আবার চেষ্টা করো</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- ফোন-স্ক্রিনের মত সাদা ফ্রেম + প্লে বাটন -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,34 L62,34 A6,6 0 0 1 68,40 L68,68 A6,6 0 0 1 62,74 L30,74 A6,6 0 0 1 24,68 L24,40 A6,6 0 0 1 30,34 Z" />
+    <path
+        android:fillColor="#6C2BD9"
+        android:pathData="M42,44 L58,54 L42,64 Z" />
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M72,46 L84,38 L84,70 L72,62 Z" />
+</vector>
