@@ -46,6 +46,7 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private var series = false
+    private var movie: MovieItem? = null /* 📥 ডাউনলোড ফাইলের নামে মুভির নাম বসাতে */
     private val ui = Handler(Looper.getMainLooper())
     private var gateCount: TextView? = null
     private var gateLeft = 0
@@ -68,7 +69,9 @@ class DetailActivity : AppCompatActivity() {
         setContentView(R.layout.activity_detail)
 
         val m = intent.getSerializableExtra("item") as? MovieItem ?: run { finish(); return }
+        movie = m
         series = BloggerApi.isWebSeries(m.title, m.labels)
+        Stats.view(this, m.title) /* 📊 অ্যাডমিন প্যানেলে এই মুভির ইম্প্রেশন */
 
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<TextView>(R.id.dTitle).text = m.title
@@ -350,13 +353,37 @@ class DetailActivity : AppCompatActivity() {
     /* ── ⬇ সরাসরি ডাউনলোড — ফোনের ডাউনলোডার (Chrome-এর একই ইঞ্জিন),
            Downloads ফোল্ডারে সেভ হয়, নোটিফিকেশনে প্রগ্রেস দেখায় ── */
 
+    /** 📥 ডাউনলোড ফাইলের সুন্দর নাম: "MovieBoxBD.xyz — মুভির নাম [720p WEB-DL]"
+     *  ইউজার যেন ডাউনলোড করা ফাইলটা দেখেই বুঝতে পারে কোন মুভি */
+    private fun downloadName(rawName: String): String {
+        val sb = StringBuilder(Config.BRAND)
+        val t = movie?.title?.trim().orEmpty()
+        if (t.isNotEmpty()) sb.append(" — ").append(t)
+        val link = rawName.trim()
+        if (link.isNotEmpty() && !link.equals(t, true)) {
+            /* "720p WEB-DL · 1.08 GB" → শুধু "720p WEB-DL"; EP/সিজন নাম হলে পুরোটা */
+            val q = link.substringBefore("·").trim()
+            if (q.startsWith("EP") || q.startsWith("পুরো") || q.startsWith("ফুল") ||
+                q.contains("সিজন") || q.contains("সিরিজ")) {
+                sb.append(" — ").append(q)
+            } else if (q.isNotEmpty()) {
+                sb.append(" [").append(q).append("]")
+            }
+        }
+        /* ফাইলনেমে নিষিদ্ধ চিহ্ন বাদ (বাংলা অক্ষর থাকবে — Android সাপোর্ট করে) */
+        var s = sb.toString().replace(Regex("[\\\\/:*?\"<>|]"), " ")
+            .replace(Regex("\\s+"), " ").trim()
+        if (s.length > 90) s = s.take(90).trim()
+        return s
+    }
+
     private fun download(streamUrl: String, rawName: String) {
         if (streamUrl.isBlank()) {
             Toast.makeText(this, "ডাউনলোড লিংক নেই", Toast.LENGTH_SHORT).show()
             return
         }
         try {
-            val name = (rawName.ifBlank { "movie" }).replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val name = downloadName(rawName)
             val ext = if (streamUrl.lowercase().contains(".mp4")) ".mp4" else ".mkv"
             val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             val req = DownloadManager.Request(Uri.parse(streamUrl))
@@ -365,6 +392,7 @@ class DetailActivity : AppCompatActivity() {
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name + ext)
             dm.enqueue(req)
+            Stats.download(this, movie?.title ?: rawName) /* 📊 অ্যাডমিন প্যানেলে ডাউনলোড কাউন্ট */
             Toast.makeText(this, "📥 ডাউনলোড শুরু হয়েছে", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "ডাউনলোড শুরু করা যায়নি", Toast.LENGTH_SHORT).show()
