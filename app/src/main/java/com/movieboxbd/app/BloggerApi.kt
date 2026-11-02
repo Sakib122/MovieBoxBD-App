@@ -43,7 +43,8 @@ object BloggerApi {
     fun scrub(s0: String): String {
         if (s0.isBlank()) return s0
         var s = s0
-        s = s.replace(CREDIT_BY_RE, "MovieBoxBD")
+        s = s.replace(CREDIT_SEP_RE, "MovieBoxBD")
+        s = s.replace(CREDIT_WORD_BY_RE, "MovieBoxBD")
         s = s.replace(DOMAIN_RE, "MovieBoxBD")
         s = s.replace(MOVIELINK_RE, "MovieBoxBD")
         s = s.replace(Regex("\\s{2,}"), " ").trim()
