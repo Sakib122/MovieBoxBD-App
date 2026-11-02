@@ -45,6 +45,28 @@
             android:textSize="18sp" />
     </FrameLayout>
 
+    <!-- 🚀 নতুন আপডেট ব্যানার — অ্যাডমিন প্যানেলে নতুন ভার্সন দিলে এখানে ফুটে ওঠে -->
+    <LinearLayout
+        android:id="@+id/updateBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/accent2"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/updateText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🚀 নতুন আপডেট এসেছে — ট্যাপ করে আপডেট করো"
+            android:textColor="#0D0F1C"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
