@@ -6,20 +6,24 @@ import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.VideoSize
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -32,7 +36,10 @@ import androidx.media3.ui.PlayerView
  * ▶ MX Player স্টাইলের প্লেয়ার:
  *  — টেনে সামনে/পেছনে নেওয়া (seek)
  *  — বাঁ দিকে উপর-নিচ টানলে ব্রাইটনেস, ডান দিকে ভলিউম
- *  — ভিডিও অনুযায়ী অটো ল্যান্ডস্কেপ/পোর্ট্রেট
+ *  — 🔒 স্ক্রিন লক (MX-এর মতো — লক করলে কোনো ছোঁয়া কাজ করবে না)
+ *  — ⚡ প্লে স্পিড (0.5x থেকে 2x)
+ *  — 🎧 অডিও ট্র্যাক বদলানো (ডাবল অডিও মুভির জন্য)
+ *  — ভিডিও অনুযায়ী অটো ল্যান্ডস্কেপ/পোর্ট্রেট + রোটেট বাটন
  *  — ধীর সার্ভার হলেও অপেক্ষা করে (৩০ সেকেন্ড টাইমআউট) + আবার চেষ্টা বাটন
  *  — ব্যাক বাটন দিয়ে বেরিয়ে আসা যায় ✔
  */
@@ -49,7 +56,17 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var gestureHint: TextView
     private lateinit var errorBox: View
     private lateinit var errText: TextView
+    private lateinit var mxBar: LinearLayout
+    private lateinit var btnMLock: TextView
+    private lateinit var btnMUnlock: TextView
+    private lateinit var btnMSpeed: TextView
+    private lateinit var btnMAudio: TextView
     private var started = false
+    private var locked = false
+
+    private val SPEEDS = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+    private val SPEED_LABELS = arrayOf("0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x")
+    private var speedIndex = 2
 
     private val ui = Handler(Looper.getMainLooper())
 
@@ -69,6 +86,11 @@ class PlayerActivity : AppCompatActivity() {
         gestureHint = findViewById(R.id.gestureHint)
         errorBox = findViewById(R.id.errorBox)
         errText = findViewById(R.id.errText)
+        mxBar = findViewById(R.id.mxBar)
+        btnMLock = findViewById(R.id.btnMLock)
+        btnMUnlock = findViewById(R.id.btnMUnlock)
+        btnMSpeed = findViewById(R.id.btnMSpeed)
+        btnMAudio = findViewById(R.id.btnMAudio)
         findViewById<TextView>(R.id.pTitle).text = title
         findViewById<ImageButton>(R.id.btnPBack).setOnClickListener { finish() }
         findViewById<View>(R.id.btnRetry).setOnClickListener { retry() }
@@ -79,8 +101,101 @@ class PlayerActivity : AppCompatActivity() {
                 else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
 
+        /* 🔒 MX স্টাইল লক */
+        btnMLock.setOnClickListener { lockScreen() }
+        btnMUnlock.setOnClickListener { unlockScreen() }
+        /* ⚡ স্পিড */
+        btnMSpeed.setOnClickListener { showSpeedDialog() }
+        /* 🎧 অডিও ট্র্যাক */
+        btnMAudio.setOnClickListener { showAudioDialog() }
+
+        /* লক থাকলে ব্যাক চাপলে বের হবে না — MX-এর মতো */
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (locked) {
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        "🔒 আগে নিচের 🔓 বাটন দিয়ে আনলক করো",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    finish()
+                }
+            }
+        })
+
         setupGestures()
         buildPlayer()
+    }
+
+    /* ── 🔒 স্ক্রিন লক / আনলক ───────────────────────────────── */
+
+    private fun lockScreen() {
+        locked = true
+        pv.hideController()
+        mxBar.visibility = View.GONE
+        gestureArea.visibility = View.VISIBLE
+        btnMUnlock.visibility = View.VISIBLE
+        Toast.makeText(this, "🔒 স্ক্রিন লক হয়েছে — খুলতে 🔓 চাপো", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun unlockScreen() {
+        locked = false
+        btnMUnlock.visibility = View.GONE
+        pv.showController()
+    }
+
+    /* ── ⚡ প্লে স্পিড ───────────────────────────────────────── */
+
+    private fun showSpeedDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("⚡ প্লে স্পিড")
+            .setItems(SPEED_LABELS) { _, w ->
+                speedIndex = w
+                player?.playbackParameters = PlaybackParameters(SPEEDS[w])
+                btnMSpeed.text = SPEED_LABELS[w]
+            }
+            .show()
+    }
+
+    /* ── 🎧 অডিও ট্র্যাক (ডাবল অডিও মুভির জন্য) ─────────────── */
+
+    private fun showAudioDialog() {
+        val p = player ?: return
+        val groups = p.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+        if (groups.isEmpty()) {
+            Toast.makeText(this, "এই ভিডিওতে কোনো অডিও ট্র্যাক নেই", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (groups.size < 2) {
+            Toast.makeText(this, "এই ভিডিওতে ১টাই অডিও ট্র্যাক আছে", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val items = ArrayList<String>()
+        items.add("অটো (ডিফল্ট)")
+        for (g in groups) {
+            var label: String? = null
+            for (i in 0 until g.length) {
+                val f = g.getTrackFormat(i)
+                label = f.label ?: f.language
+                if (!label.isNullOrBlank()) break
+            }
+            items.add(label ?: "অডিও ট্র্যাক ${items.size}")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("🎧 অডিও ট্র্যাক বাছো")
+            .setItems(items.toTypedArray()) { _, w ->
+                val tb = p.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                tb.clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                if (w > 0) {
+                    val g = groups[w - 1]
+                    if (g.length > 0) tb.addOverride(TrackSelectionOverride(g.mediaTrackGroup, 0))
+                }
+                p.trackSelectionParameters = tb.build()
+                audioDisabled = false
+            }
+            .show()
     }
 
     /* ── প্লেয়ার তৈরি (ধীর সার্ভারের জন্য বড় টাইমআউট) ────────── */
@@ -110,11 +225,15 @@ class PlayerActivity : AppCompatActivity() {
         pv.controllerShowTimeoutMs = 3500
         pv.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
             override fun onVisibilityChanged(visibility: Int) {
-                gestureArea.visibility = if (visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                mxBar.visibility =
+                    if (visibility == View.VISIBLE) View.VISIBLE else View.GONE
+                gestureArea.visibility =
+                    if (visibility == View.VISIBLE && !locked) View.GONE else View.VISIBLE
             }
         })
 
         player?.setMediaItem(MediaItem.fromUri(url))
+        player?.playbackParameters = PlaybackParameters(SPEEDS[speedIndex])
         player?.playWhenReady = true
         player?.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
@@ -196,6 +315,11 @@ class PlayerActivity : AppCompatActivity() {
         var brightBase = 0f
 
         gestureArea.setOnTouchListener { _, ev ->
+            if (locked) {
+                if (ev.actionMasked == MotionEvent.ACTION_DOWN)
+                    showHint("🔒 স্ক্রিন লক করা — খুলতে নিচের 🔓 চাপো")
+                return@setOnTouchListener true
+            }
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = ev.x; downY = ev.y; lastX = ev.x
@@ -239,7 +363,7 @@ class PlayerActivity : AppCompatActivity() {
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (mode == 0) pv.showController()
+                    if (mode == 0 && !locked) pv.showController()
                     hideHintSoon()
                     true
                 }
