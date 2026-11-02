@@ -108,9 +108,11 @@ class PlayerActivity : AppCompatActivity() {
 
         pv.player = player
         pv.controllerShowTimeoutMs = 3500
-        pv.setControllerVisibilityListener { vis ->
-            gestureArea.visibility = if (vis == View.VISIBLE) View.GONE else View.VISIBLE
-        }
+        pv.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
+            override fun onVisibilityChanged(visibility: Int) {
+                gestureArea.visibility = if (visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            }
+        })
 
         player?.setMediaItem(MediaItem.fromUri(url))
         player?.playWhenReady = true
