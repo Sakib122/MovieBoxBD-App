@@ -39,7 +39,7 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
             val published = entry.optJSONObject("published")?.optString("\$t") ?: ""
             if (published.isEmpty()) return
 
-            val last = p.getString("last_post", "")
+            val last = p.getString("last_post", "") ?: ""
             if (last.isEmpty()) {
                 /* প্রথমবার — শুধু মনে রাখবে, নোটিফিকেশন দেবে না */
                 p.edit().putString("last_post", published).apply()
