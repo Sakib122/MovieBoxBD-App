@@ -147,6 +147,29 @@ class MainActivity : AppCompatActivity() {
         askNotificationPermission()
         scheduleUploadCheck()
         loadHome(true)
+
+        /* 📊 অ্যাডমিন প্যানেল: অ্যাপ-ওপেন স্ট্যাট + নতুন আপডেট ব্যানার */
+        Stats.appOpen(this)
+        checkAppUpdate()
+    }
+
+    /* ── 🚀 অ্যাপ আপডেট ব্যানার — অ্যাডমিন প্যানেলে নতুন ভার্সন দিলে হোমের উপরে ফুটে ওঠে ── */
+    private fun checkAppUpdate() {
+        Thread {
+            val info = Updater.fetch() ?: return@Thread
+            if (!Updater.isNewer(info)) return@Thread
+            runOnUiThread {
+                val banner = findViewById<View>(R.id.updateBanner) ?: return@runOnUiThread
+                banner.visibility = View.VISIBLE
+                findViewById<TextView>(R.id.updateText).text =
+                    "🚀 নতুন ভার্সন ${info.name} এসেছে — ট্যাপ করে আপডেট করো"
+                banner.setOnClickListener {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
+                    } catch (_: Exception) {}
+                }
+            }
+        }.start()
     }
 
     private fun showPane(pane: View) {
