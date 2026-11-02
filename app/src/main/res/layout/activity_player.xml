@@ -33,6 +33,63 @@
         android:textSize="16sp"
         android:visibility="gone" />
 
+    <!-- ══ MX স্টাইল বাটন বার: 🔒 লক / ⚡ স্পিড / 🎧 অডিও ══ -->
+    <LinearLayout
+        android:id="@+id/mxBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="14dp"
+        android:background="#88000000"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/btnMLock"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="🔒"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/btnMSpeed"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="1x"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnMAudio"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="🎧"
+            android:textSize="17sp" />
+    </LinearLayout>
+
+    <!-- 🔓 লক খোলার বাটন (লক করলে শুধু এটা দেখা যাবে) -->
+    <TextView
+        android:id="@+id/btnMUnlock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="18dp"
+        android:background="#88000000"
+        android:gravity="center"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="10dp"
+        android:text="🔓 আনলক"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
     <!-- ⚠️ লোড ফেল হলে -->
     <LinearLayout
         android:id="@+id/errorBox"
