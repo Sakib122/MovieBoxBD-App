@@ -108,6 +108,19 @@
                     android:textColor="@color/textMain"
                     android:textSize="15sp" />
 
+                <!-- ⚠️ স্ট্রিম লিংক না থাকলে এই নোটিশ দেখাবে -->
+                <TextView
+                    android:id="@+id/noVideoNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@color/surface"
+                    android:padding="12dp"
+                    android:text="⚠️ এখানে দেখার মতো ভিডিও নেই। তবে নিচের ⬇ বাটনে চেপে টেলিগ্রাম থেকে ডাউনলোড করে দেখতে পারেন!"
+                    android:textColor="#FFB74D"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/linkList"
                     android:layout_width="match_parent"
