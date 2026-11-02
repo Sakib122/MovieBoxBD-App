@@ -1,0 +1,47 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: কোড নামাও
+        uses: actions/checkout@v4
+
+      - name: Java 17 সেটআপ
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle সেটআপ
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: APK বিল্ড
+        run: gradle assembleDebug --no-daemon
+
+      - name: APK রেডি করো
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/MovieBoxBD.apk
+          ls -la out/
+
+      - name: Release-এ APK তুলো
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: MovieBoxBD APK (build ${{ github.run_number }})
+          files: out/MovieBoxBD.apk
+          body: |
+            📱 MovieBoxBD — নতুন APK তৈরি হয়েছে!
+            নিচের MovieBoxBD.apk ডাউনলোড করে ইনস্টল করো।
+          make_latest: true
