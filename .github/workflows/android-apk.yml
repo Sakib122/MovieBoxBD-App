@@ -1,8 +1,8 @@
 name: Build APK
 
+# 🔒 বিল্ড শুধুমাত্র ম্যানুয়ালি: Actions ট্যাব → Build APK → Run workflow
+# ফাইল আপলোড/কমিট দিলে আর অটোমেটিক বিল্ড হবে না।
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
