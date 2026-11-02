@@ -108,18 +108,49 @@
                     android:textColor="@color/textMain"
                     android:textSize="15sp" />
 
-                <!-- ⚠️ স্ট্রিম লিংক না থাকলে এই নোটিশ দেখাবে -->
-                <TextView
+                <!-- 📼 স্ট্রিম লিংক না থাকলে এই সুন্দর কার্ডটা দেখাবে — ওয়েবসাইটে যাওয়ার বাটনসহ -->
+                <LinearLayout
                     android:id="@+id/noVideoNote"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:background="@color/surface"
-                    android:padding="12dp"
-                    android:text="⚠️ এখানে দেখার মতো ভিডিও নেই। তবে নিচের ⬇ বাটনে চেপে টেলিগ্রাম থেকে ডাউনলোড করে দেখতে পারেন!"
-                    android:textColor="#FFB74D"
-                    android:textSize="13sp"
-                    android:visibility="gone" />
+                    android:background="@drawable/note_card"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:padding="18dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📼"
+                        android:textSize="34sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="এই ভিডিওটা অ্যাপে যোগ করা হয়নি!"
+                        android:textColor="@color/textMain"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:text="চিন্তা নেই! এটা আমাদের ওয়েবসাইটে আপলোড করা আছে। নিচের বাটনে চাপলেই সরাসরি ওয়েবসাইটে যাবে — সেখানে এক ক্লিকেই দেখতে পারবে।"
+                        android:textColor="@color/textSub"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnNoteWeb"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="🌐 ওয়েবসাইটে গিয়ে দেখো" />
+                </LinearLayout>
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/linkList"

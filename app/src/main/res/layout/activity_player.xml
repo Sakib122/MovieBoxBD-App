@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/playerRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
@@ -27,13 +28,15 @@
         android:textSize="16sp"
         android:visibility="gone" />
 
-    <!-- ══ MX স্টাইল বাটন বার: 🔒 লক / ⚡ স্পিড / 🎧 অডিও / 💬 সাব ══ -->
+    <!-- ══ MX স্টাইল বাটন বার: 🔒 লক / ⚡ স্পিড / 🎧 অডিও / 💬 সাব / ⛶ স্ক্রিন ══
+         নিচের কন্ট্রোল বারের উপরে থাকে — পোর্ট্রেটে প্লে/পজ বাটনের উপর চেপে বসে না -->
     <LinearLayout
         android:id="@+id/mxBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
-        android:layout_margin="14dp"
+        android:layout_marginStart="14dp"
+        android:layout_marginBottom="116dp"
         android:background="#88000000"
         android:orientation="horizontal"
         android:visibility="gone">
@@ -75,6 +78,17 @@
             android:gravity="center"
             android:text="💬"
             android:textSize="17sp" />
+
+        <!-- ⛶ স্ক্রিন মোড: ফিট → জুম (পুরো স্ক্রিন ভরে) → টানাটানি → ফিট -->
+        <TextView
+            android:id="@+id/btnMScale"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="⛶"
+            android:textColor="#FFFFFF"
+            android:textSize="17sp" />
     </LinearLayout>
 
     <!-- 🔒 লক থাকলে পুরো স্ক্রিন এই লেয়ার গিলে ফেলবে — কোনো ছোঁয়া কাজ করবে না -->
@@ -93,7 +107,7 @@
         android:layout_height="46dp"
         android:layout_gravity="top|start"
         android:layout_margin="10dp"
-        android:background="#88000000"
+        android:background="@drawable/player_btn_circle"
         android:gravity="center"
         android:text="🔓"
         android:textSize="20sp"

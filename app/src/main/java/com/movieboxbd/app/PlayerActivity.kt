@@ -16,8 +16,10 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -31,18 +33,24 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.max
 
 /**
- * ▶ MX Player স্টাইলের প্লেয়ার v3:
- *  — ✅ প্লে/পজ বাটন + স্ক্রিনে ট্যাপ করলেই কন্ট্রোলার আসে-যায়
- *  — ✅ আঙুল টেনে সামনে/পেছনে (seek), বাঁ পাশে উপর-নিচ = ব্রাইটনেস,
- *     ডান পাশে উপর-নিচ = ভলিউম (MX Player-এর মতোই)
- *  — ✅ 🔓 আনলক আইকন উপরের কোণায় (MX Player-এর মতো)
- *  — ⚡ প্লে স্পিড (0.5x থেকে 2x)
- *  — 🎧 অডিও ট্র্যাক বদলানো (ভাষার নামসহ — হিন্দি/বাংলা দেখাবে)
- *  — 💬 সাবটাইটেল অন/অফ টগল
+ * ▶ MX Player স্টাইলের প্লেয়ার v4 (২.৩):
+ *  — ✅ প্লে/পজ এক বাটনে (exo_play_pause) — Media3 নিজেই আইকন বদলায় ও ক্লিক ধরে
+ *  — ✅ ফুল ইমারসিভ: স্ট্যাটাস/নেভিগেশন বার উঠে এলে আবার লুকিয়ে দেওয়া হয়,
+ *     আর কন্ট্রোল বারে ইনসেট প্যাডিং — তাই বাটন কখনো নেভবারের নিচে চাপা পড়বে না
+ *  — ✅ MX-এর মতো টেনে সিক: টানতে থাকলে শুধু সময় দেখায়, ছাড় দিলে একবার সিক হয়
+ *     (আগে প্রতি নড়াচড়ায় seekTo হচ্ছিল — তাই ০ সেকেন্ডে লাফিয়ে ফিরে আসত)
+ *  — ✅ বাঁ পাশে উপর-নিচ = ☀️ ব্রাইটনেস, ডান পাশে উপর-নিচ = 🔊 ভলিউম
+ *  — ✅ ⛶ স্ক্রিন মোড: ফিট → জুম (পুরো স্ক্রিন ভরে) → টানাটানি → ফিট
+ *  — 🎧 অডিও ট্র্যাক: ভাষার ইংরেজি নাম (Hindi/Tamil/Bangla/Telugu…) +
+ *     ফাইলের ভেতরের ক্রেডিট (MovieLinkBD.one…) সরিয়ে MovieBoxBD বসে
+ *  — 💬 সাবটাইটেল অন/অফ, ⚡ স্পিড, 🔓 লক (আনলক উপরের কোণায়)
  *  — ভিডিও অনুযায়ী অটো ল্যান্ডস্কেপ/পোর্ট্রেট + রোটেট বাটন
  *  — ধীর সার্ভার হলেও অপেক্ষা করে (৩০ সেকেন্ড টাইমআউট) + আবার চেষ্টা বাটন
  */
@@ -65,6 +73,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnMSpeed: TextView
     private lateinit var btnMAudio: TextView
     private lateinit var btnMSub: TextView
+    private lateinit var btnMScale: TextView
     private lateinit var lockLayer: View
     private var started = false
     private var locked = false
@@ -74,16 +83,49 @@ class PlayerActivity : AppCompatActivity() {
     private val SPEED_LABELS = arrayOf("0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x")
     private var speedIndex = 2
 
+    /** ⛶ স্ক্রিন মোড: ফিট → জুম → টানাটানি */
+    private val SCALE_MODES = intArrayOf(
+        AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+        AspectRatioFrameLayout.RESIZE_MODE_FILL
+    )
+    private val SCALE_HINTS = arrayOf(
+        "⛶ ফিট — অনুপাত ঠিক রেখে পুরো ভিডিও দেখা যায়",
+        "⛶ জুম — পুরো স্ক্রিন ভরে যায় (কিছু অংশ কাটা যায়)",
+        "⛶ টানাটানি — স্ক্রিনের মাপে ভরে যায় (মুখ লম্বা/চ্যাপ্টা লাগতে পারে)"
+    )
+    private var scaleIndex = 0
+
     /** ম্যানুয়ালি বাছা অডিও ট্র্যাক (-1 = অটো) */
     private var audioPick = -1
 
-    /** ভাষার কোড → সুন্দর নাম */
+    /** ভাষার কোড → ইংরেজি নাম (২ ও ৩ অক্ষরের দুই রকম কোডই) */
     private val LANG_NAMES = mapOf(
-        "hin" to "হিন্দি", "ben" to "বাংলা", "bn" to "বাংলা", "eng" to "English",
-        "tam" to "তামিল", "tel" to "তেলুগু", "mal" to "মালয়ালম", "kan" to "কন্নড়",
-        "urd" to "উর্দু", "ara" to "আরবি", "spa" to "স্প্যানিশ", "kor" to "কোরিয়ান",
-        "jpn" to "জাপানি", "chi" to "চাইনিজ", "zho" to "চাইনিজ", "nep" to "নেপালি",
-        "mar" to "মারাঠি", "guj" to "গুজরাটি", "pan" to "পাঞ্জাবি", "tha" to "থাই"
+        "hi" to "Hindi", "hin" to "Hindi",
+        "bn" to "Bangla", "ben" to "Bangla", "bang" to "Bangla",
+        "ta" to "Tamil", "tam" to "Tamil",
+        "te" to "Telugu", "tel" to "Telugu",
+        "en" to "English", "eng" to "English",
+        "ml" to "Malayalam", "mal" to "Malayalam",
+        "kn" to "Kannada", "kan" to "Kannada",
+        "mr" to "Marathi", "mar" to "Marathi",
+        "pa" to "Punjabi", "pan" to "Punjabi",
+        "ur" to "Urdu", "urd" to "Urdu",
+        "gu" to "Gujarati", "guj" to "Gujarati",
+        "ko" to "Korean", "kor" to "Korean",
+        "ja" to "Japanese", "jpn" to "Japanese",
+        "zh" to "Chinese", "chi" to "Chinese", "zho" to "Chinese",
+        "th" to "Thai", "tha" to "Thai",
+        "ar" to "Arabic", "ara" to "Arabic",
+        "es" to "Spanish", "spa" to "Spanish",
+        "ne" to "Nepali", "nep" to "Nepali",
+        "si" to "Sinhala", "sin" to "Sinhala",
+        "fr" to "French", "fra" to "French", "fre" to "French",
+        "de" to "German", "deu" to "German", "ger" to "German",
+        "ru" to "Russian", "rus" to "Russian",
+        "pt" to "Portuguese", "por" to "Portuguese",
+        "id" to "Indonesian", "ind" to "Indonesian",
+        "my" to "Burmese", "bur" to "Burmese", "mya" to "Burmese"
     )
 
     private val ui = Handler(Looper.getMainLooper())
@@ -92,8 +134,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        WindowCompat.getInsetsController(window, window.decorView)
-            .hide(WindowInsetsCompat.Type.systemBars())
+        hideSystemBars()
         setContentView(R.layout.activity_player)
 
         url = intent.getStringExtra("url") ?: run { finish(); return }
@@ -109,6 +150,7 @@ class PlayerActivity : AppCompatActivity() {
         btnMSpeed = findViewById(R.id.btnMSpeed)
         btnMAudio = findViewById(R.id.btnMAudio)
         btnMSub = findViewById(R.id.btnMSub)
+        btnMScale = findViewById(R.id.btnMScale)
         lockLayer = findViewById(R.id.lockLayer)
         findViewById<TextView>(R.id.pTitle).text = title
         findViewById<ImageButton>(R.id.btnPBack).setOnClickListener { finish() }
@@ -118,6 +160,30 @@ class PlayerActivity : AppCompatActivity() {
                 if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
                     ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+
+        /* ═══ ইনসেট: কন্ট্রোল বার নেভবার/নোটচের নিচে চাপা পড়বে না +
+               বার কোথাও উঠে এলে আবার লুকিয়ে দেওয়া হয় (আসল ইমারসিভ) ═══ */
+        val ctrlTop = findViewById<View>(R.id.ctrlTop)
+        val ctrlBottom = findViewById<View>(R.id.ctrlBottom)
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.playerRoot)) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val cut = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            val top = max(bars.top, cut.top)
+            val bottom = max(bars.bottom, cut.bottom)
+            ctrlTop.setPadding(0, top, 0, 0)
+            ctrlBottom.setPadding(ctrlBottom.paddingLeft, 0, ctrlBottom.paddingRight, bottom)
+            /* 🔓 আনলক বাটনটাও নোটচ/স্ট্যাটাস বারের নিচে ঢুকে যাবে না */
+            btnMUnlock.layoutParams = (btnMUnlock.layoutParams as android.widget.FrameLayout.LayoutParams).also {
+                it.topMargin = 10 + top
+            }
+            /* mxBar-ও নেভবার + কন্ট্রোল বারের উপরে উঠে থাকবে */
+            mxBar.layoutParams = (mxBar.layoutParams as android.widget.FrameLayout.LayoutParams).also {
+                it.bottomMargin = 116 + bottom
+            }
+            /* স্ট্যাটাস/নেভিগেশন বার স্থায়ীভাবে ফিরে এলে আবার লুকাও */
+            if (insets.isVisible(WindowInsetsCompat.Type.systemBars())) hideSystemBars()
+            WindowInsetsCompat.CONSUMED
         }
 
         /* 🔒 MX স্টাইল লক — আনলক আইকন উপরের কোণায় */
@@ -130,6 +196,12 @@ class PlayerActivity : AppCompatActivity() {
         btnMAudio.setOnClickListener { showAudioDialog() }
         /* 💬 সাবটাইটেল অন/অফ */
         btnMSub.setOnClickListener { toggleSubs() }
+        /* ⛶ স্ক্রিন মোড (ফিট → জুম → টানাটানি) */
+        btnMScale.setOnClickListener {
+            scaleIndex = (scaleIndex + 1) % SCALE_MODES.size
+            pv.resizeMode = SCALE_MODES[scaleIndex]
+            showHint(SCALE_HINTS[scaleIndex])
+        }
 
         /* লক থাকলে ব্যাক চাপলে বের হবে না — MX-এর মতো */
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -148,6 +220,12 @@ class PlayerActivity : AppCompatActivity() {
 
         setupGestures()
         buildPlayer()
+    }
+
+    private fun hideSystemBars() {
+        val c = WindowCompat.getInsetsController(window, window.decorView)
+        c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        c.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     /* ── 🔒 স্ক্রিন লক / আনলক ───────────────────────────────── */
@@ -182,22 +260,32 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
-    /* ── 🎧 অডিও ট্র্যাক (ভাষার নামসহ — ফাঁকা রো আর থাকবে না) ── */
+    /* ── 🎧 অডিও ট্র্যাক (ইংরেজি ভাষার নাম + ক্রেডিট বাদ) ─────── */
+
+    /** ফাইলের ভেতরের লেবেল থেকে ক্রেডিট (MovieLinkBD.one …) সরিয়ে পরিষ্কার করে */
+    private fun cleanLabel(raw: String?): String? {
+        var s = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        s = s.replace(Regex("(?i)movie\\s*link\\s*bd(\\s*\\.\\s*(one|com|net|org|xyz|info))?"), "MovieBoxBD")
+        s = s.replace(Regex("(?i)movie\\s*box\\s*bd(\\s*\\.\\s*(one|com|net|org|xyz|info))?"), "MovieBoxBD")
+        s = s.replace("|", " ").replace(Regex("\\s+"), " ").trim()
+        s = s.replace(Regex("^[•\\-–—_\\s]+"), "").replace(Regex("[•\\-–—_\\s]+$"), "")
+        return s.ifBlank { null }
+    }
 
     private fun audioRowLabel(g: Tracks.Group): String {
         for (i in 0 until g.length) {
             val f = g.getTrackFormat(i)
-            val name = f.label?.takeIf { it.isNotBlank() }
-            val lang = f.language?.takeIf { it.isNotBlank() }
-                ?.let { LANG_NAMES[it.lowercase().substringBefore('-')] ?: it }
-            val base = name ?: lang
+            val langCode = f.language?.trim()?.lowercase()?.substringBefore('-')
+            val langName = langCode?.let { LANG_NAMES[it] }
+            /* ভাষার কোড চেনা গেলে ইংরেজি নাম — নাহলে লেবেল (ক্রেডিট সরিয়ে) */
+            val base = langName ?: cleanLabel(f.label) ?: "অডিও ট্র্যাক"
             val ch = when (f.channelCount) {
                 1 -> "মোনো"; 2 -> "স্টেরিও"; 6 -> "5.1"; 8 -> "7.1"; else -> null
             }
             val bits = ArrayList<String>()
-            if (!base.isNullOrBlank()) bits.add(base)
+            bits.add(base)
             if (ch != null) bits.add(ch)
-            if (bits.isNotEmpty()) return bits.joinToString("  •  ")
+            return bits.joinToString("  •  ")
         }
         return "অডিও ট্র্যাক"
     }
@@ -304,7 +392,7 @@ class PlayerActivity : AppCompatActivity() {
             .setConnectTimeoutMs(30_000)
             .setReadTimeoutMs(30_000)
             .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("Mozilla/5.0 (Linux; Android) MovieBoxBD/2.0")
+            .setUserAgent("Mozilla/5.0 (Linux; Android) MovieBoxBD/2.3")
 
         player = ExoPlayer.Builder(this, DefaultRenderersFactory(this).setEnableDecoderFallback(true))
             .setMediaSourceFactory(DefaultMediaSourceFactory(dsFactory))
@@ -314,6 +402,7 @@ class PlayerActivity : AppCompatActivity() {
             .build()
 
         pv.player = player
+        pv.resizeMode = SCALE_MODES[scaleIndex]
         pv.controllerShowTimeoutMs = 3500
         pv.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
             override fun onVisibilityChanged(visibility: Int) {
@@ -395,7 +484,8 @@ class PlayerActivity : AppCompatActivity() {
 
     /* ── MX স্টাইল জেসচার — পুরো স্ক্রিনে কাজ করে ────────────────
      *  ট্যাপ            → কন্ট্রোলার দেখাও/লুকাও (প্লে/পজ বাটন ওঠে)
-     *  ডানে-বাঁয়ে টানা   → ⏪ ⏩ সামনে/পেছনে
+     *  ডানে-বাঁয়ে টানা   → ⏪ ⏩ সিক — টানতে থাকলে শুধু সময় দেখায়,
+     *                       আঙুল তুলে দিলে একবার সিক হয় (MX Player-এর মতো)
      *  বাঁ পাশে উপর-নিচ → ☀️ ব্রাইটনেস
      *  ডান পাশে উপর-নিচ → 🔊 ভলিউম
      */
@@ -404,7 +494,7 @@ class PlayerActivity : AppCompatActivity() {
         val maxVol = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val slop = 24f
         var downX = 0f; var downY = 0f
-        var seekBase = 0L; var lastX = 0f
+        var seekBase = 0L; var seekTarget = 0L; var seekDur = 0L
         var volBase = 0
         var mode = 0 // 0=none 1=seek 2=bright 3=volume
         var brightBase = 0f
@@ -413,9 +503,11 @@ class PlayerActivity : AppCompatActivity() {
             if (locked) return@setOnTouchListener true
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    downX = ev.x; downY = ev.y; lastX = ev.x
+                    downX = ev.x; downY = ev.y
                     mode = 0
                     seekBase = player?.currentPosition ?: 0L
+                    seekTarget = seekBase
+                    seekDur = player?.duration?.takeIf { it > 0 } ?: 0L
                     volBase = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
                     brightBase = window.attributes.screenBrightness.takeIf { it > 0 } ?: 0.5f
                     true
@@ -431,13 +523,18 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     when (mode) {
                         1 -> {
-                            val delta = ((ev.x - lastX) * 250).toLong()
-                            lastX = ev.x
-                            val dur = player?.duration?.takeIf { it > 0 } ?: 0L
-                            var target = seekBase + delta
-                            if (dur > 0) target = target.coerceIn(0L, dur)
-                            player?.seekTo(target)
-                            showHint(if (delta >= 0) "⏩ +${delta / 1000} সেকেন্ড" else "⏪ ${-delta / 1000} সেকেন্ড")
+                            /* MX-এর মতো: পুরো স্ক্রিন-প্রস্থ টানলে ~২ মিনিট।
+                               টানার সময় শুধু টার্গেট সময় দেখাই — seekTo হয় না! */
+                            val span = resources.displayMetrics.widthPixels.toFloat().takeIf { it > 0 } ?: 1080f
+                            val deltaMs = (dx / span * 120_000f).toLong()
+                            seekTarget = if (seekDur > 0)
+                                (seekBase + deltaMs).coerceIn(0L, seekDur)
+                            else (seekBase + deltaMs).coerceAtLeast(0L)
+                            val diff = seekTarget - seekBase
+                            val arrow = if (diff >= 0) "⏩" else "⏪"
+                            val extra = if (seekDur > 0) " / ${fmtTime(seekDur)}" else ""
+                            val sign = if (diff >= 0) "+" else "-"
+                            showHint("$arrow ${fmtTime(seekTarget)}$extra  ($sign${abs(diff) / 1000} সে)")
                         }
                         2 -> {
                             val f = (brightBase - dy / resources.displayMetrics.heightPixels * 1.2f).coerceIn(0.01f, 1f)
@@ -456,7 +553,10 @@ class PlayerActivity : AppCompatActivity() {
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (mode == 0) {
+                    if (mode == 1) {
+                        /* আঙুল তুলে দিলেই একবার সিক — এখানেই আসল seekTo */
+                        player?.seekTo(seekTarget)
+                    } else if (mode == 0) {
                         /* সাধারণ ট্যাপ → কন্ট্রোলার আসবে/যাবে (প্লে/পজ বাটনসহ) */
                         if (controllerVisible) pv.hideController() else pv.showController()
                     }
@@ -466,6 +566,16 @@ class PlayerActivity : AppCompatActivity() {
                 else -> false
             }
         }
+    }
+
+    /** মিলিসেকেন্ড → "mm:ss" বা "h:mm:ss" */
+    private fun fmtTime(ms: Long): String {
+        val t = ms.coerceAtLeast(0L) / 1000
+        val h = t / 3600
+        val m = (t % 3600) / 60
+        val s = t % 60
+        return if (h > 0) String.format(Locale.US, "%d:%02d:%02d", h, m, s)
+        else String.format(Locale.US, "%02d:%02d", m, s)
     }
 
     private fun showHint(text: String) {

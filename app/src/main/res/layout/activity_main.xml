@@ -6,13 +6,31 @@
     android:background="@color/bg"
     android:orientation="vertical">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
+    <!-- উপরের বার + 🔄 রিলোড বাটন -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/surface"
-        app:title="@string/app_name"
-        app:titleTextColor="@color/textMain" />
+        android:layout_height="?attr/actionBarSize">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/surface"
+            app:title="@string/app_name"
+            app:titleTextColor="@color/textMain" />
+
+        <TextView
+            android:id="@+id/btnReload"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical|end"
+            android:layout_marginEnd="10dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="reload"
+            android:gravity="center"
+            android:text="🔄"
+            android:textSize="18sp" />
+    </FrameLayout>
 
     <FrameLayout
         android:layout_width="match_parent"

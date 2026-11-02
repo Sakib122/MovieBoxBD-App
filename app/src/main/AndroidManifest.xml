@@ -32,7 +32,8 @@
         <activity
             android:name=".PlayerActivity"
             android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:windowLayoutInDisplayCutoutMode="shortEdges" />
     </application>
 
 </manifest>

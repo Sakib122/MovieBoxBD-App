@@ -86,10 +86,15 @@ class DetailActivity : AppCompatActivity() {
             catch (_: Exception) {}
         }
 
-        /* স্ট্রিম লিংক না থাকলে নোটিশ দেখাও */
+        /* স্ট্রিম লিংক না থাকলে সুন্দর কার্ড দেখাও — ওয়েবসাইটে যাওয়ার বাটনসহ */
         val hasStream = m.links.any { it.streamUrl.isNotBlank() }
         findViewById<View>(R.id.noVideoNote).visibility =
             if (hasStream) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.btnNoteWeb).setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(m.permalink.ifBlank { Config.SITE })))
+            } catch (_: Exception) {}
+        }
 
         /* ব্যানার অ্যাড (তোমার Adsterra কোড) */
         Ads.applyBanner(findViewById(R.id.adBanner), Config.ADSTERRA_BANNER_320x50)
@@ -240,16 +245,22 @@ class DetailActivity : AppCompatActivity() {
                 )
             }
 
-            /* ⬇ ডাউনলোড — টেলিগ্রাম বটের লিংক; না থাকলে সরাসরি ডাউনলোড */
+            /* ⬇ ডাউনলোড — সরাসরি ডাউনলোড (ফোনের ডাউনলোডার, Downloads ফোল্ডারে সেভ হবে)।
+               টেলিগ্রামে যাবে না — টেলিগ্রামের জন্য ✈ বাটনই আছে। */
             h.dl.setOnClickListener {
+                if (link.streamUrl.isBlank() && link.tgUrl.isBlank()) {
+                    Toast.makeText(this@DetailActivity, "ডাউনলোড লিংক নেই", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 beforeAd()
-                if (link.tgUrl.isNotBlank()) {
-                    Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
-                } else {
+                if (link.streamUrl.isNotBlank()) {
                     Ads.requestAction(
                         this@DetailActivity, Ads.ACT_DOWNLOAD,
                         "", link.name, link.streamUrl
                     )
+                } else {
+                    /* স্ট্রিম লিংক না থাকলেই শুধু টেলিগ্রাম ফলব্যাক */
+                    Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
                 }
             }
 
@@ -295,7 +306,8 @@ class DetailActivity : AppCompatActivity() {
         try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
     }
 
-    /* ── ⬇ ফলব্যাক: সরাসরি ডাউনলোড (টেলিগ্রাম লিংক না থাকলে) ── */
+    /* ── ⬇ সরাসরি ডাউনলোড — ফোনের ডাউনলোডার (Chrome-এর একই ইঞ্জিন),
+           Downloads ফোল্ডারে সেভ হয়, নোটিফিকেশনে প্রগ্রেস দেখায় ── */
 
     private fun download(streamUrl: String, rawName: String) {
         if (streamUrl.isBlank()) {

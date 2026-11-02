@@ -5,12 +5,15 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- উপরের বার: ব্যাক + টাইটেল -->
+    <!-- উপরের বার: ব্যাক + টাইটেল (নোটচ/স্ট্যাটাস বারের নিচে চাপা পড়বে না —
+         PlayerActivity ইনসেট হিসাব করে এখানে প্যাডিং বসায়) -->
     <LinearLayout
+        android:id="@+id/ctrlTop"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="wrap_content"
         android:background="@drawable/player_bar"
         android:gravity="center_vertical"
+        android:minHeight="48dp"
         android:orientation="horizontal">
 
         <ImageButton
@@ -40,8 +43,9 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <!-- নিচের কন্ট্রোল বার -->
+    <!-- নিচের কন্ট্রোল বার (নেভিগেশন বারের নিচে চাপা পড়বে না) -->
     <LinearLayout
+        android:id="@+id/ctrlBottom"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/player_bar"
@@ -94,28 +98,19 @@
                 android:src="@android:drawable/ic_media_rew"
                 app:tint="#FFFFFF" />
 
-            <FrameLayout
-                android:layout_width="64dp"
-                android:layout_height="64dp">
-
-                <ImageButton
-                    android:id="@id/exo_play"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="play"
-                    android:src="@android:drawable/ic_media_play"
-                    app:tint="#FFFFFF" />
-
-                <ImageButton
-                    android:id="@id/exo_pause"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="pause"
-                    android:src="@android:drawable/ic_media_pause"
-                    app:tint="#FFFFFF" />
-            </FrameLayout>
+            <!-- ⏯ Media3-এর এক-বাটন প্লে/পজ — আইকন ও ক্লিক Media3 নিজেই সামলায়
+                 (আগের exo_play/exo_pause দুই বাটন Media3 ১.২.১ চেনেই না, তাই বাটনটা মরা ছিল) -->
+            <ImageButton
+                android:id="@id/exo_play_pause"
+                android:layout_width="66dp"
+                android:layout_height="66dp"
+                android:layout_marginHorizontal="6dp"
+                android:background="@drawable/player_btn_circle"
+                android:contentDescription="play"
+                android:padding="16dp"
+                android:scaleType="fitCenter"
+                android:src="@android:drawable/ic_media_play"
+                app:tint="#FFFFFF" />
 
             <ImageButton
                 android:id="@id/exo_ffwd"

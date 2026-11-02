@@ -109,6 +109,16 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnRetrySearch).setOnClickListener { doSearch() }
         searchBtn.setOnClickListener { doSearch() }
 
+        /* 🔄 রিলোড — হোম ট্যাবে হোম নতুন করে লোড হবে, অন্য ট্যাবে সেই লিস্ট */
+        findViewById<View>(R.id.btnReload).setOnClickListener {
+            Toast.makeText(this, "🔄 রিফ্রেশ করা হচ্ছে…", Toast.LENGTH_SHORT).show()
+            when (tab) {
+                R.id.navHome -> { homeLoaded = false; loadHome(true) }
+                R.id.navSearch -> doSearch()
+                else -> load(true)
+            }
+        }
+
         val nav = findViewById<BottomNavigationView>(R.id.bottomNav)
         nav.setOnItemSelectedListener { item ->
             tab = item.itemId
