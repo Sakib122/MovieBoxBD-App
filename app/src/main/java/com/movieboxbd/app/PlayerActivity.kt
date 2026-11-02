@@ -88,6 +88,8 @@ class PlayerActivity : AppCompatActivity() {
     /* অডিও কম্প্যাট: READY হলেই একবার চেক (ইউজার নিজে বাছলে আর নাক গলানো হয় না) */
     private var audioChecked = false
     private var audioFallbackDone = false
+    /* 🔊 সাউন্ড সাপোর্ট নেই এমন ফোনে একবারই MX Player ফলব্যাক ডায়ালগ দেখাও */
+    private var soundHelpShown = false
     /* ল্যান্ডস্কেপে কাটআউট বাঁ/ডান দিকে থাকে — mxBar-এর মার্জিনে যোগ হয় */
     private var cutLeft = 0
     private var cutRight = 0
@@ -375,9 +377,11 @@ class PlayerActivity : AppCompatActivity() {
                     .build()
                 Toast.makeText(
                     this,
-                    "🔇 এই ফোনে ওই সাউন্ড ফরম্যাট সাপোর্ট নেই — ছবি চলছে (ডাউনলোড করে MX Player-এ চালালে সাউন্ড আসবে)",
+                    "🔇 এই ফোনে ওই সাউন্ড ফরম্যাট সাপোর্ট নেই — ছবি চলছে",
                     Toast.LENGTH_LONG
                 ).show()
+                /* 🔊 এই ফোনে সাউন্ড হবে না — MX Player/VLC দিয়ে চালানোর সুন্দর ডায়ালগ */
+                showSoundHelp()
             }
         } catch (_: Exception) {
         }
@@ -401,6 +405,68 @@ class PlayerActivity : AppCompatActivity() {
         } catch (_: Exception) {
             false
         }
+    }
+
+    /* ── 🔊 MX Player ফলব্যাক (সাউন্ড সাপোর্ট নেই এমন ফোনের জন্য) ──────
+     *  এই ফোনে মুভির Dolby সাউন্ড না চললে MX Player/VLC দিয়ে খুলতে বলে —
+     *  ইনস্টল থাকলে সঙ্গে সঙ্গেই ওই মুভি ওখানে চালু হয়ে যায় (সাউন্ডসহ),
+     *  না থাকলে Play Store-এর ডাউনলোড পেজ খুলে দেয়। */
+    private fun showSoundHelp() {
+        if (soundHelpShown) return
+        soundHelpShown = true
+        val MX1 = "com.mxtech.videoplayer.ad"   /* MX Player (ফ্রি) */
+        val MX2 = "com.mxtech.videoplayer.pro"  /* MX Player Pro */
+        val VLC = "org.videolan.vlc"
+
+        fun installed(pkg: String): Boolean = try {
+            packageManager.getPackageInfo(pkg, 0); true
+        } catch (_: Exception) { false }
+
+        fun launchIn(pkg: String): Boolean {
+            if (!installed(pkg)) return false
+            return try {
+                val i = Intent(Intent.ACTION_VIEW)
+                i.setDataAndType(Uri.parse(url), "video/*")
+                i.setPackage(pkg)
+                i.putExtra("title", title)
+                startActivity(i)
+                true
+            } catch (_: Exception) { false }
+        }
+
+        fun openStore(pkg: String) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")))
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://play.google.com/store/apps/details?id=$pkg")))
+                } catch (_: Exception) {}
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("🔊 এই ফোনে সাউন্ড চলছে না")
+            .setMessage(
+                "মুভির সাউন্ড ফরম্যাট (Dolby) এই ফোনের প্লেয়ার ডিকোড করতে পারছে না।\n\n" +
+                "▶ MX Player বা VLC দিয়ে খুললে সাউন্ডসহ চলবে।\n\n" +
+                "• আগে থেকে ইনস্টল থাকলে চাপ দিলেই সঙ্গে সঙ্গে মুভি চলবে\n" +
+                "• না থাকলে Play Store থেকে ডাউনলোড করে আবার ট্রাই করো"
+            )
+            .setPositiveButton("▶ MX Player-এ চালাও") { _, _ ->
+                if (!launchIn(MX1) && !launchIn(MX2)) {
+                    Toast.makeText(this, "আগে Play Store থেকে MX Player ডাউনলোড করো, তারপর আবার চাপো", Toast.LENGTH_LONG).show()
+                    openStore(MX1)
+                }
+            }
+            .setNeutralButton("▶ VLC-তে চালাও") { _, _ ->
+                if (!launchIn(VLC)) {
+                    Toast.makeText(this, "আগে Play Store থেকে VLC ডাউনলোড করো, তারপর আবার চাপো", Toast.LENGTH_LONG).show()
+                    openStore(VLC)
+                }
+            }
+            .setNegativeButton("এখন না", null)
+            .show()
     }
 
     private fun showAudioDialog() {
@@ -541,6 +607,7 @@ class PlayerActivity : AppCompatActivity() {
                     if (!started) {
                         started = true
                         player?.play()
+                        Stats.play(this@PlayerActivity, title) /* 📊 অ্যাডমিন প্যানেলে এই মুভির ভিউ */
                     }
                     /* 🔊 এই ফোনে সাউন্ড না চললে অন্য ট্র্যাকে অটো-সুইচ */
                     ensureAudioCompat()
@@ -582,7 +649,7 @@ class PlayerActivity : AppCompatActivity() {
                 audioFallbackDone = true
                 return
             }
-            /* না হলে: সাউন্ড বন্ধ করে ছবি চালাও (ক্র্যাশ হয় না) */
+            /* না হলে: সাউন্ড বন্ধ করে ছবি চালাও (ক্র্যাশ হয় না) + MX Player ফলব্যাক অফার */
             if (!audioDisabled) {
                 audioDisabled = true
                 Toast.makeText(
@@ -590,6 +657,7 @@ class PlayerActivity : AppCompatActivity() {
                     "🔇 এই ফোনে ওই সাউন্ড ফরম্যাট সাপোর্ট নেই — ছবি চলছে",
                     Toast.LENGTH_LONG
                 ).show()
+                showSoundHelp()
                 restartPlayer()
             }
             return
