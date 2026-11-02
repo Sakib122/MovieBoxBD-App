@@ -13,14 +13,18 @@ android {
            ইনস্টল করতে পারবে; Media3/ExoPlayer-ও 21 থেকেই চলে */
         minSdk 21
         targetSdk 34
-        versionCode 5
-        versionName "2.4"
+        versionCode 6
+        versionName "2.5"
     }
 
     buildTypes {
         release {
             minifyEnabled false
         }
+    }
+    /* 📊 আপডেট-চেকার BuildConfig.VERSION_CODE পড়ে — এই সুইচ ছাড়া জেনারেট হয় না */
+    buildFeatures {
+        buildConfig true
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
