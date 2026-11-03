@@ -4,6 +4,20 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 🛠 v2.6.1 বড় ফিক্স: Android 11+ (API 30+) এ নতুন "Package Visibility" রুল —
+         এই <queries> ছাড়া অ্যাপটা MX Player / VLC ইনস্টল থাকলেও দেখতেই পায় না,
+         ভাবে ইনস্টল নেই, তাই সাথে সাথে Play Store-এ নিয়ে যায়।
+         এই ব্লক যোগ হলে ইনস্টল থাকলেই মুভি সরাসরি MX Player/VLC-তে খুলবে। -->
+    <queries>
+        <package android:name="com.mxtech.videoplayer.ad" />
+        <package android:name="com.mxtech.videoplayer.pro" />
+        <package android:name="org.videolan.vlc" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
