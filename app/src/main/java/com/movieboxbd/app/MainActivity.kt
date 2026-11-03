@@ -133,7 +133,20 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) {
             }
         }
-
+        /* 🔞 18+ Adult — লুকানো এন্ট্রি: হোম টুলবারের ছোট 🔒 আইকন।
+           প্রথমে ১৮+ পারমিশন চাইবে, "হ্যাঁ" দিলে তবেই Adult পেজ খুলবে */
+        findViewById<View>(R.id.btnAdult).setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("🔞 18+ Adult Content")
+                .setMessage("এই সেকশনে শুধু ১৮ বছরের ঊর্ধ্বেদের জন্য কনটেন্ট আছে।\n\nআপনি কি ১৮ বছর বা তার বেশি বয়সী?")
+                .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
+                    startActivity(Intent(this, AdultActivity::class.java))
+                }
+                .setNegativeButton("না", null)
+                .setCancelable(true)
+                .show()
+        }
+        
         val nav = findViewById<BottomNavigationView>(R.id.bottomNav)
         nav.setOnItemSelectedListener { item ->
             tab = item.itemId
@@ -240,13 +253,14 @@ class MainActivity : AppCompatActivity() {
                 val p1 = BloggerApi.load(null, null, 1)
                 val p2 = try { BloggerApi.load(null, null, 1 + p1.items.size) } catch (_: Exception) { FeedPage(emptyList(), 0) }
                 val all = ArrayList(p1.items)
+                all.removeAll { BloggerApi.isAdult(it) }   /* 🔞 এডাল্ট হোমে আসবে না */
                 all.addAll(p2.items)
                 val hero = all.firstOrNull()
                 val series = all.filter { BloggerApi.isWebSeries(it.title, it.labels) }
                 val hindi = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
                         it.labels.any { l -> l.equals("Hindi", true) || l.equals("Hindi Dubbed", true) } }
                 val bangla = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
-                        it.labels.any { l -> l.equals("Bangla", true) } }
+                        it.labels.any { l -> Config.BANGLA_LABELS.any { b -> l.equals(b, true) } } }
                 val dub = all.filter { it.labels.any { l -> Config.BANGLA_DUB_LABELS.any { b -> l.equals(b, true) } } }
                 val sections = ArrayList<Pair<String, List<MovieItem>>>()
                 sections.add("🔥 নতুন আপলোড" to all.take(10))
@@ -279,19 +293,31 @@ class MainActivity : AppCompatActivity() {
             for (l in Config.WEB_SERIES_LABELS) if (!names.contains(l)) names.add(l)
         } else {
             names.add("🔥 সব")
-            for (l in Config.CATEGORY_LABELS) if (!names.contains(l)) names.add(l)
+            for (l in Config.CATEGORY_LABELS) {
+                /* 🇧🇩 ব্লগে লেবেল "Bengali" — অ্যাপে দেখাবে "বাংলা" ট্যাব হিসেবে */
+                val shown = if (Config.BANGLA_LABELS.any { b -> l.equals(b, true) })
+                    Config.BANGLA_TAB_NAME else l
+                if (!names.contains(shown)) names.add(shown)
+            }
         }
         for (name in names) {
             val chip = Chip(this)
             chip.text = name
             chip.isCheckable = true
             val isAll = name == "🔥 সব" || name == "📺 ওয়েব সিরিজ"
-            chip.isChecked = if (tab == R.id.navSeries)
-                (name == "📺 ওয়েব সিরিজ" && currentLabel == "Web Series")
-            else (name == "🔥 সব" && currentLabel == null) || name == currentLabel
+            /* ট্যাবের দেখার নাম → ব্লগের আসল লেবেল (বাংলা → Bengali) */
+            val query = when {
+                isAll -> if (tab == R.id.navSeries) "Web Series" else null
+                name == Config.BANGLA_TAB_NAME -> Config.BANGLA_MAIN_LABEL
+                else -> name
+            }
+            chip.isChecked = when {
+                tab == R.id.navSeries -> name == "📺 ওয়েব সিরিজ" && currentLabel == "Web Series"
+                isAll -> currentLabel == null
+                else -> query == currentLabel
+            }
             chip.setOnClickListener {
-                currentLabel = if (isAll) (if (tab == R.id.navSeries) "Web Series" else null)
-                else name
+                currentLabel = query
                 buildChips()
                 load(true)
             }
@@ -320,9 +346,11 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     loading = false
                     spinner.visibility = View.GONE
-                    items.addAll(page.items)
-                    nextIndex = start + page.items.size
-                    if (page.items.size < 20) endReached = true
+                    val fetched = page.items.size
+                    val fresh = page.items.filter { !BloggerApi.isAdult(it) } /* 🔞 এডাল্ট বাদ */
+                    items.addAll(fresh)
+                    nextIndex = start + fetched          /* আসল সংখ্যা — নাহলে পেজ স্কিপ হবে */
+                    if (fetched < 20) endReached = true
                     adapter.notifyDataSetChanged()
                     if (items.isEmpty()) {
                         emptyBox.visibility = View.VISIBLE
@@ -366,7 +394,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     searchSpinner.visibility = View.GONE
                     searchItems.clear()
-                    searchItems.addAll(page.items)
+                    searchItems.addAll(page.items.filter { !BloggerApi.isAdult(it) }) /* 🔞 এডাল্ট বাদ */
                     searchAdapter.notifyDataSetChanged()
                     if (searchItems.isEmpty()) searchEmpty.visibility = View.VISIBLE
                 }
