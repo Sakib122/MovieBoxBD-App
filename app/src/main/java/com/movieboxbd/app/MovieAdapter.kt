@@ -9,13 +9,17 @@ import androidx.recyclerview.widget.RecyclerView
 
 class MovieAdapter(
     private val items: List<MovieItem>,
-    private val onClick: (MovieItem) -> Unit
+    private val onClick: (MovieItem) -> Unit,
+    /* 🔞 true দিলে এডাল্ট কার্ড ঝাপসা + ১৮+ ব্যাজ (AdultActivity ডিফল্ট false — ওখানে সব খোলা) */
+    private val blurAdult: Boolean = false
 ) : RecyclerView.Adapter<MovieAdapter.VH>() {
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val poster: ImageView = v.findViewById(R.id.poster)
         val title: TextView = v.findViewById(R.id.title)
         val meta: TextView = v.findViewById(R.id.meta)
+        val scrim: View = v.findViewById(R.id.adultScrim)
+        val badge: TextView = v.findViewById(R.id.adultBadge)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -35,7 +39,16 @@ class MovieAdapter(
                 append(m.date)
             }
         }
-        ImageLoader.load(h.poster, m.poster)
+        /* 🔞 এডাল্ট হলে পোস্টার ঝাপসা + লাল ১৮+ ব্যাজ (ওয়েবসাইটের মতো) */
+        if (blurAdult && BloggerApi.isAdult(m)) {
+            h.scrim.visibility = View.VISIBLE
+            h.badge.visibility = View.VISIBLE
+            ImageLoader.load(h.poster, m.poster, pixelate = true)
+        } else {
+            h.scrim.visibility = View.GONE
+            h.badge.visibility = View.GONE
+            ImageLoader.load(h.poster, m.poster)
+        }
         h.itemView.setOnClickListener { onClick(m) }
     }
 }
