@@ -170,7 +170,26 @@ class MainActivity : AppCompatActivity() {
         Stats.appOpen(this)
         checkAppUpdate()
     }
+   
+    /* 🔞 নোটিফিকেশন থেকে এলে — আগে ১৮+ কনফার্মেশন গেট, তারপর Adult পেজ */
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleAdultOpen(intent)
+    }
 
+    private fun handleAdultOpen(intent: Intent?) {
+        if (intent?.getBooleanExtra("open_adult", false) != true) return
+        try { intent.removeExtra("open_adult") } catch (_: Exception) {}
+        MaterialAlertDialogBuilder(this)
+            .setTitle("🔞 18+ Adult Content")
+            .setMessage("এই কনটেন্ট শুধুমাত্র ১৮ বছর বা তার বেশি বয়সীদের জন্য।\n\nআপনি কি ১৮ বছর পার করেছেন?")
+            .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
+                startActivity(Intent(this, AdultActivity::class.java))
+            }
+            .setNegativeButton("না", null)
+            .setCancelable(true)
+            .show()
+    }
     /* ── 🚀 অ্যাপ আপডেট — পপআপ + ব্যানার + নোটিফিকেশন (প্রতি ওপেনে চেক) ──
        v2.6: আপডেট থাকলে হোম খুললেই ক্লোজ বাটনসহ পপআপ আসবে (পুরো নোটস দেখাবে),
        আর নোটিফিকেশনও সাথে সাথে যাবে (প্রতি ভার্সনে একবার)। */
