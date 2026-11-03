@@ -191,6 +191,8 @@ class HomeAdapter(
         inner class VH(v: View) : RecyclerView.ViewHolder(v) {
             val img: ImageView = v.findViewById(R.id.smallImg)
             val name: TextView = v.findViewById(R.id.smallName)
+            val scrim: View = v.findViewById(R.id.smallScrim)
+            val badge: TextView = v.findViewById(R.id.smallBadge)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -204,7 +206,16 @@ class HomeAdapter(
         override fun onBindViewHolder(h: VH, pos: Int) {
             val m = items[pos]
             h.name.text = m.title
-            ImageLoader.load(h.img, m.poster)
+            /* 🔞 এডাল্ট হলে পোস্টার ঝাপসা + লাল ১৮+ ব্যাজ — ক্লিকে openMovie-এর পপআপ গেট */
+            if (BloggerApi.isAdult(m)) {
+                h.scrim.visibility = View.VISIBLE
+                h.badge.visibility = View.VISIBLE
+                ImageLoader.load(h.img, m.poster, pixelate = true)
+            } else {
+                h.scrim.visibility = View.GONE
+                h.badge.visibility = View.GONE
+                ImageLoader.load(h.img, m.poster)
+            }
             h.itemView.setOnClickListener { onClick(m) }
         }
     }
