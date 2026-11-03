@@ -18,10 +18,21 @@ object Config {
     val WEB_SERIES_LABELS = listOf("Web Series")
 
     /* ── বাংলা ডাব লেবেল — ব্লগে এই লেবেল দিলেই অ্যাপে অটো সেকশন আসবে ── */
-    val BANGLA_DUB_LABELS = listOf("Bangla Dub", "বাংলা ডাব", "Bangla Dubbing", "Bangla Dubbed")
+    val BANGLA_DUB_LABELS = listOf("Bangla Dub", "বাংলা ডাব", "Bangla Dubbing", "Bangla Dubbed", "Bengali")
+
+    /* ── 🇧🇩 বাংলা — ব্লগে লেবেলের নাম "Bengali" (ওয়েবসাইটে /search/label/Bengali)।
+      হোমে "🎙️ বাংলা ডাব" সেকশনে দেখাবে, মুভি ট্যাবে "🇧🇩 বাংলা" চিপে খুলবে ── */
+    const val BANGLA_TAB_NAME = "🇧🇩 বাংলা"
+    const val BANGLA_MAIN_LABEL = "Bengali"
+    val BANGLA_LABELS = listOf("Bangla", "Bengali", "বাংলা")
+
+    /* ── 🔞 Adult লেবেল — সামনে কোথাও দেখাবে না; হোম টুলবারের 🔒 → ১৮+ পারমিশনের পরে ── */
+    const val ADULT_LABEL = "Adult"
+    val ADULT_LABELS = listOf("Adult", "18+", "Adults")
 
     /* ── টেলিগ্রাম বটের ইউজারনেম (@ ছাড়া) — যেমন: "MovieBoxBDBot"
           এটা দিলেই ডিটেইল পেজে ✈️ টেলিগ্রাম বাটন চালু হবে ── */
+        
     const val TELEGRAM_BOT_USERNAME = "movieboxxpro_bot"
 
     /* ── ✈️ টেলিগ্রাম চ্যানেল (হোম টুলবার, ডিটেইল পেজ, প্লেয়ারের এরর বক্স —
