@@ -33,7 +33,8 @@ import java.net.URL
  */
 object Updater {
 
-    data class Info(val code: Int, val name: String, val url: String, val msg: String)
+    /* ts = প্যানেলে ঘোষণাটা কখন দেওয়া হলো — প্রতিবার নতুন ঘোষণায় বদলায় */
+    data class Info(val code: Int, val name: String, val url: String, val msg: String, val ts: Long = 0)
 
     private const val CH_ID = "app_update"
     private const val NOTIF_ID = 1002
@@ -53,7 +54,8 @@ object Updater {
             val j = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).readText())
             val code = j.optInt("code", 0)
             if (code <= 0) return null
-            Info(code, j.optString("name", ""), j.optString("url", ""), j.optString("msg", ""))
+            Info(code, j.optString("name", ""), j.optString("url", ""), j.optString("msg", ""),
+                (j.optDouble("ts", 0.0) * 1000).toLong())   /* 🆕 ঘোষণার সময় (মিলিসেকেন্ড) */
         } catch (_: Exception) {
             null
         } finally {
@@ -71,15 +73,22 @@ object Updater {
             ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
-    /** এই ভার্সনের নোটিফিকেশন আগে দেখানো হয়েছে কি না (মার্ক করে না) */
-    fun wasNotified(ctx: Context, info: Info): Boolean =
-        ctx.getSharedPreferences("mbx_notify", Context.MODE_PRIVATE)
-            .getInt("notified_update_code", 0) >= info.code
+    /* এই ঘোষণার (code+ts) নোটিফিকেশন আগে দেখানো হয়েছে কি না (মার্ক করে না)।
+       🆕 ts থাকলে প্রতিটা নতুন ঘোষণাই নতুন পিং — একই code আবার দিলেও সবাই আবার পাবে।
+       ts না থাকলে (পুরনো সার্ভার) আগের নিয়ম: এক code = একবার। */
+    fun wasNotified(ctx: Context, info: Info): Boolean {
+        val p = ctx.getSharedPreferences("mbx_notify", Context.MODE_PRIVATE)
+        if (info.ts > 0) return p.getLong("notified_update_ts", 0L) == info.ts
+        return p.getInt("notified_update_code", 0) >= info.code
+    }
 
-    /** নোটিফিকেশন সফলভাবে দেখানোর পরেই ডাকব — তার আগে কখনো না */
+    /* নোটিফিকেশন সফলভাবে দেখানোর পরেই ডাকব — তার আগে কখনো না */
     fun markNotified(ctx: Context, info: Info) {
         ctx.getSharedPreferences("mbx_notify", Context.MODE_PRIVATE)
-            .edit().putInt("notified_update_code", info.code).apply()
+            .edit()
+            .putInt("notified_update_code", info.code)
+            .putLong("notified_update_ts", info.ts)   /* 🆕 */
+            .apply()
     }
 
     /** 🚀 আপডেট নোটিফিকেশন বানিয়ে দেখায়। সফল হলে true, ব্যর্থ হলে false (পরে আবার চেষ্টা হবে)। */
