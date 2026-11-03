@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageButton
@@ -408,3 +410,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
+    /* 💓 লাইভ হার্টবিট — অ্যাপ সামনে খোলা থাকলে ১ মিনিট পরপর সার্ভারে বিট যায়,
+       তাতে প্যানেলের "🔴 এখন লাইভ" সংখ্যা সত্যিকারের লাইভ দেখায় */
+    private val beatUi = Handler(Looper.getMainLooper())
+    private val beatTick = object : Runnable {
+        override fun run() {
+            Stats.beat(this@MainActivity)
+            beatUi.postDelayed(this, 60_000L)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Stats.beat(this)
+        beatUi.removeCallbacks(beatTick)
+        beatUi.postDelayed(beatTick, 60_000L)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        beatUi.removeCallbacks(beatTick)
+    }
