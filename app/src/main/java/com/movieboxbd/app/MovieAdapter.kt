@@ -9,9 +9,9 @@ import androidx.recyclerview.widget.RecyclerView
 
 class MovieAdapter(
     private val items: List<MovieItem>,
-    private val onClick: (MovieItem) -> Unit,
     /* 🔞 true দিলে এডাল্ট কার্ড ঝাপসা + ১৮+ ব্যাজ (AdultActivity ডিফল্ট false — ওখানে সব খোলা) */
-    private val blurAdult: Boolean = false
+    private val blurAdult: Boolean = false,
+    private val onClick: (MovieItem) -> Unit
 ) : RecyclerView.Adapter<MovieAdapter.VH>() {
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
