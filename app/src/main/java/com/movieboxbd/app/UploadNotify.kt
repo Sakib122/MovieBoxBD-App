@@ -184,55 +184,18 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
         }
     }
 
-    /* ── 🚀 অ্যাপ আপডেট নোটিফিকেশন (অ্যাডমিন প্যানেল কন্ট্রোলড) ── */
+    /* ── 🚀 অ্যাপ আপডেট নোটিফিকেশন (অ্যাডমিন প্যানেল কন্ট্রোলড) ──
+       🛠 v2.6 ফিক্স: আগে পারমিশন না থাকলেও "পাঠানো হয়েছে" মার্ক হয়ে যেত —
+       ফলে নোটিফিকেশন কখনোই আসত না। এখন: পারমিশন না থাকলে মার্ক ছাড়াই ফেরত
+       (পরের চেকে আবার চেষ্টা হবে), আর আসলেই পাঠানোর পরে মার্ক হয়। */
 
     private fun checkAppUpdate(ctx: Context) {
         val info = Updater.fetch() ?: return
         if (!Updater.isNewer(info)) return
-        if (!Updater.notifyOncePerVersion(ctx, info)) return
-        try {
-            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (Build.VERSION.SDK_INT >= 26) {
-                nm.createNotificationChannel(
-                    NotificationChannel(
-                        "app_update", "অ্যাপ আপডেট",
-                        NotificationManager.IMPORTANCE_HIGH
-                    )
-                )
-            }
-            if (Build.VERSION.SDK_INT >= 33 &&
-                ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) return
-
-            val target: Intent = if (info.url.isNotBlank())
-                Intent(Intent.ACTION_VIEW, Uri.parse(info.url))
-            else Intent(ctx, MainActivity::class.java)
-            val pi = PendingIntent.getActivity(
-                ctx, 2, target,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val n = NotificationCompat.Builder(ctx, "app_update")
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("🚀 MovieBoxBD-এর নতুন আপডেট এসেছে!")
-                .setContentText(
-                    "নতুন ভার্সন ${info.name}" +
-                        (if (info.msg.isNotBlank()) " — ${info.msg.take(80)}" else "") +
-                        " — ট্যাপ করে আপডেট করো"
-                )
-                .setStyle(
-                    NotificationCompat.BigTextStyle()
-                        .bigText(
-                            "নতুন ভার্সন ${info.name} এসেছে।\n" +
-                                (if (info.msg.isNotBlank()) info.msg + "\n" else "") +
-                                "ট্যাপ করলেই আপডেট ফাইল ডাউনলোড হবে।"
-                        )
-                )
-                .setContentIntent(pi)
-                .setAutoCancel(true)
-                .build()
-            nm.notify(1002, n)
-        } catch (_: Exception) {
+        if (!Updater.hasPermission(ctx)) return          /* পরের চেকে আবার চেষ্টা হবে */
+        if (Updater.wasNotified(ctx, info)) return
+        if (Updater.postUpdateNotification(ctx, info)) {
+            Updater.markNotified(ctx, info)
         }
     }
 }

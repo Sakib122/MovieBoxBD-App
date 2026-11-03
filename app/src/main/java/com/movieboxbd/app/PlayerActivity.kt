@@ -88,8 +88,13 @@ class PlayerActivity : AppCompatActivity() {
     /* অডিও কম্প্যাট: READY হলেই একবার চেক (ইউজার নিজে বাছলে আর নাক গলানো হয় না) */
     private var audioChecked = false
     private var audioFallbackDone = false
-    /* 🔊 সাউন্ড সাপোর্ট নেই এমন ফোনে একবারই MX Player ফলব্যাক ডায়ালগ দেখাও */
-    private var soundHelpShown = false
+    /* 🔊 সাউন্ড সাপোর্ট নেই এমন ফোনে MX Player ফলব্যাক ডায়ালগ।
+       🛠 v2.6.1 ফিক্স: আগে ডায়ালগ একবারই দেখাত — MX Player ইনস্টল করে ফিরে এলেও
+       "আবার ট্রাই" করার সুযোগ পেত না। এখন: MX/VLC-তে সফলভাবে খোলার আগে
+       প্রয়োজন হলে বারবার দেখায়, আর Manifest-এর <queries> ফিক্সের কারণে
+       ইনস্টল থাকা MX/VLC চোখেও পড়ে (আগে অদৃশ্য ছিল!)। */
+    private var soundHelpDialog: AlertDialog? = null
+    private var extPlayerUsed = false
     /* ল্যান্ডস্কেপে কাটআউট বাঁ/ডান দিকে থাকে — mxBar-এর মার্জিনে যোগ হয় */
     private var cutLeft = 0
     private var cutRight = 0
@@ -410,26 +415,25 @@ class PlayerActivity : AppCompatActivity() {
     /* ── 🔊 MX Player ফলব্যাক (সাউন্ড সাপোর্ট নেই এমন ফোনের জন্য) ──────
      *  এই ফোনে মুভির Dolby সাউন্ড না চললে MX Player/VLC দিয়ে খুলতে বলে —
      *  ইনস্টল থাকলে সঙ্গে সঙ্গেই ওই মুভি ওখানে চালু হয়ে যায় (সাউন্ডসহ),
-     *  না থাকলে Play Store-এর ডাউনলোড পেজ খুলে দেয়। */
+     *  না থাকলে Play Store-এর ডাউনলোড পেজ খুলে দেয়।
+     *  🛠 v2.6.1 ফিক্স: আগে getPackageInfo() দিয়ে ইনস্টল চেক করত — Android 11+
+     *  এ Manifest-এ <queries> না থাকায় ইনস্টল থাকলেও চেক ফেল করত, ফলে সবসময়
+     *  Play Store-এ চলে যেত। এখন: চেক ছাড়াই সরাসরি MX/VLC খোলার চেষ্টা হয় —
+     *  সাফল্য হলে মুভি সরাসরি চলে, ফেল হলে তখনই Play Store। */
     private fun showSoundHelp() {
-        if (soundHelpShown) return
-        soundHelpShown = true
+        if (soundHelpDialog?.isShowing == true) return
         val MX1 = "com.mxtech.videoplayer.ad"   /* MX Player (ফ্রি) */
         val MX2 = "com.mxtech.videoplayer.pro"  /* MX Player Pro */
         val VLC = "org.videolan.vlc"
 
-        fun installed(pkg: String): Boolean = try {
-            packageManager.getPackageInfo(pkg, 0); true
-        } catch (_: Exception) { false }
-
         fun launchIn(pkg: String): Boolean {
-            if (!installed(pkg)) return false
             return try {
                 val i = Intent(Intent.ACTION_VIEW)
                 i.setDataAndType(Uri.parse(url), "video/*")
                 i.setPackage(pkg)
                 i.putExtra("title", title)
                 startActivity(i)
+                extPlayerUsed = true   /* MX/VLC খুলেছে — ফিরে এলে আর ডায়ালগ নাকাড়াব না */
                 true
             } catch (_: Exception) { false }
         }
@@ -445,28 +449,49 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        AlertDialog.Builder(this)
+        soundHelpDialog = AlertDialog.Builder(this)
             .setTitle("🔊 এই ফোনে সাউন্ড চলছে না")
             .setMessage(
                 "মুভির সাউন্ড ফরম্যাট (Dolby) এই ফোনের প্লেয়ার ডিকোড করতে পারছে না।\n\n" +
                 "▶ MX Player বা VLC দিয়ে খুললে সাউন্ডসহ চলবে।\n\n" +
                 "• আগে থেকে ইনস্টল থাকলে চাপ দিলেই সঙ্গে সঙ্গে মুভি চলবে\n" +
-                "• না থাকলে Play Store থেকে ডাউনলোড করে আবার ট্রাই করো"
+                "• না থাকলে Play Store থেকে ইনস্টল করো — ফিরে এলেই ডায়ালগ আবার আসবে"
             )
             .setPositiveButton("▶ MX Player-এ চালাও") { _, _ ->
                 if (!launchIn(MX1) && !launchIn(MX2)) {
-                    Toast.makeText(this, "আগে Play Store থেকে MX Player ডাউনলোড করো, তারপর আবার চাপো", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "MX Player ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলেই মুভি চলবে", Toast.LENGTH_LONG).show()
                     openStore(MX1)
                 }
             }
             .setNeutralButton("▶ VLC-তে চালাও") { _, _ ->
                 if (!launchIn(VLC)) {
-                    Toast.makeText(this, "আগে Play Store থেকে VLC ডাউনলোড করো, তারপর আবার চাপো", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "VLC ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলেই মুভি চলবে", Toast.LENGTH_LONG).show()
                     openStore(VLC)
                 }
             }
             .setNegativeButton("এখন না", null)
             .show()
+    }
+
+    /* 🛠 v2.6.1: Play Store থেকে MX Player/VLC ইনস্টল করে ফিরে এলে ডায়ালগ নিজেই
+       আবার দেখাও — ইউজারকে আর নিজে ট্রাই করতে হয় না। MX/VLC-তে মুভি খোলা গেলে
+       (extPlayerUsed) আর দেখায় না। */
+    override fun onResume() {
+        super.onResume()
+        if (audioDisabled && !isFinishing && !extPlayerUsed) {
+            ui.removeCallbacks(reShowSoundHelp)
+            ui.postDelayed(reShowSoundHelp, 600)
+        }
+    }
+
+    private val reShowSoundHelp = Runnable {
+        if (audioDisabled && !isFinishing && !extPlayerUsed &&
+            soundHelpDialog?.isShowing != true) showSoundHelp()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ui.removeCallbacks(reShowSoundHelp)
     }
 
     private fun showAudioDialog() {

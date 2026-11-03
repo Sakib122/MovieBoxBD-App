@@ -23,6 +23,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import java.util.concurrent.TimeUnit
@@ -153,12 +154,23 @@ class MainActivity : AppCompatActivity() {
         checkAppUpdate()
     }
 
-    /* ── 🚀 অ্যাপ আপডেট ব্যানার — অ্যাডমিন প্যানেলে নতুন ভার্সন দিলে হোমের উপরে ফুটে ওঠে ── */
+    /* ── 🚀 অ্যাপ আপডেট — পপআপ + ব্যানার + নোটিফিকেশন (প্রতি ওপেনে চেক) ──
+       v2.6: আপডেট থাকলে হোম খুললেই ক্লোজ বাটনসহ পপআপ আসবে (পুরো নোটস দেখাবে),
+       আর নোটিফিকেশনও সাথে সাথে যাবে (প্রতি ভার্সনে একবার)। */
     private fun checkAppUpdate() {
         Thread {
             val info = Updater.fetch() ?: return@Thread
             if (!Updater.isNewer(info)) return@Thread
+
+            /* 🔔 নোটিফিকেশন: পারমিশন থাকলে সাথে সাথে (প্রতি ভার্সনে একবার) */
+            if (Updater.hasPermission(this) && !Updater.wasNotified(this, info)) {
+                if (Updater.postUpdateNotification(this, info)) {
+                    Updater.markNotified(this, info)
+                }
+            }
+
             runOnUiThread {
+                /* ① হোমের উপরে ব্যানার */
                 val banner = findViewById<View>(R.id.updateBanner) ?: return@runOnUiThread
                 banner.visibility = View.VISIBLE
                 findViewById<TextView>(R.id.updateText).text =
@@ -168,8 +180,36 @@ class MainActivity : AppCompatActivity() {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
                     } catch (_: Exception) {}
                 }
+
+                /* ② 🪟 পপআপ — ক্লোজ বাটনসহ; আপডেট না করা পর্যন্ত প্রতিবার অ্যাপ খুললেই আসবে */
+                val msg = if (info.msg.isNotBlank()) info.msg
+                else "নতুন ভার্সন ${info.name} এসেছে — আপডেট করে সবচেয়ে ভালো অভিজ্ঞতা নাও।"
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("🚀 নতুন ভার্সন ${info.name} এসেছে!")
+                    .setMessage(msg)
+                    .setPositiveButton("⬇️ আপডেট করো") { _, _ ->
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
+                        } catch (_: Exception) {}
+                    }
+                    .setNegativeButton("পরে", null)
+                    .setCancelable(true)
+                    .show()
             }
         }.start()
+    }
+
+    /* 🔔 ইউজার নোটিফিকেশন পারমিশন Allow করলেই আপডেট-চেক নতুন করে —
+       নাহলে প্রথম ওপেনে (পারমিশন এখনো না থাকায়) নোটিফিকেশন মিস হয়ে যেত (v2.5-এর বাগ) */
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 101 && grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        ) {
+            checkAppUpdate()
+        }
     }
 
     private fun showPane(pane: View) {
