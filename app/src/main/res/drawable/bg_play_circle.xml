@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ▶ প্লে বাটনের গোল ব্যাকগ্রাউন্ড (অর্ধস্বচ্ছ কালো + সাদা রিং) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#99000000" />
+    <stroke android:width="2dp" android:color="#B3FFFFFF" />
+</shape>
