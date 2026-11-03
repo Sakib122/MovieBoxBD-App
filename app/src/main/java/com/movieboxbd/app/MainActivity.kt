@@ -437,7 +437,7 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {
         }
     }
-}
+
     /* 💓 লাইভ হার্টবিট — অ্যাপ সামনে খোলা থাকলে ১ মিনিট পরপর সার্ভারে বিট যায়,
        তাতে প্যানেলের "🔴 এখন লাইভ" সংখ্যা সত্যিকারের লাইভ দেখায় */
     private val beatUi = Handler(Looper.getMainLooper())
@@ -459,3 +459,4 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         beatUi.removeCallbacks(beatTick)
     }
+}
