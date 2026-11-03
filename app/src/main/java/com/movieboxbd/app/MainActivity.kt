@@ -282,11 +282,13 @@ class MainActivity : AppCompatActivity() {
                 var english: List<MovieItem> = emptyList()
                 var horror: List<MovieItem> = emptyList()
                 var korean: List<MovieItem> = emptyList()
+                var anime: List<MovieItem> = emptyList()
                 val tEn = Thread { english = labelFeed("English") }
                 val tHo = Thread { horror = labelFeed("Horror") }
                 val tKo = Thread { korean = labelFeed("Korean") }
-                tEn.start(); tHo.start(); tKo.start()
-                tEn.join(8000); tHo.join(8000); tKo.join(8000)
+                val tAn = Thread { anime = labelFeed("Anime") }
+                tEn.start(); tHo.start(); tKo.start(); tAn.start()
+                tEn.join(8000); tHo.join(8000); tKo.join(8000); tAn.join(8000)
 
                 val heroes = all.take(4)   /* 🎬 হিরো স্লাইডার — সর্বশেষ ৪টা */
 
@@ -306,6 +308,7 @@ class MainActivity : AppCompatActivity() {
                 if (english.isNotEmpty()) sections.add("🇬🇧 ইংলিশ মুভি" to english.take(10))
                 if (horror.isNotEmpty()) sections.add("👻 হরর মুভি" to horror.take(10))
                 if (korean.isNotEmpty()) sections.add("🇰🇷 কোরিয়ান মুভি" to korean.take(10))
+                if (anime.isNotEmpty()) sections.add("🐉 অ্যানিমে" to anime.take(10))                                
 
                 runOnUiThread {
                     homeSpinner.visibility = View.GONE
