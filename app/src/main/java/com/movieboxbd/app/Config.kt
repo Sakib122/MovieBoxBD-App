@@ -11,7 +11,7 @@ object Config {
 
     /* ── ক্যাটাগরি চিপস (মুভি ট্যাব) — ব্লগের Labels হুবহু লিখো ── */
     val CATEGORY_LABELS = listOf(
-        "Hindi", "Hindi Dubbed", "Bangla", "Korean", "English", "Horror"
+        "Hindi", "Hindi Dubbed", "Bangla", "Korean", "English", "Horror", "Anime"
     )
 
     /* ── ওয়েব সিরিজ চেনার লেবেল ──────────────────────────────── */
