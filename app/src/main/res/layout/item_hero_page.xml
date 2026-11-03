@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- এক স্লাইড = পোস্টার + গ্রেডিয়েন্ট + নাম + ▶ প্লে বাটন (ট্যাপ করলেই মুভি খুলবে) -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/heroImg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/surface2"
+        android:contentDescription="poster"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/hero_gradient" />
+
+    <TextView
+        android:id="@+id/heroPlay"
+        android:layout_width="58dp"
+        android:layout_height="58dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_play_circle"
+        android:contentDescription="play"
+        android:elevation="6dp"
+        android:gravity="center"
+        android:text="▶"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="26dp">
+
+        <TextView
+            android:id="@+id/heroTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="2"
+            android:shadowColor="#90000000"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:shadowRadius="3"
+            android:textColor="#FFFFFF"
+            android:textSize="17sp" />
+
+        <TextView
+            android:id="@+id/heroMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:textColor="#D9FFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+</FrameLayout>
