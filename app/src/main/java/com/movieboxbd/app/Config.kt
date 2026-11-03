@@ -95,7 +95,7 @@ object Config {
 
     /* ── 📊 অ্যাডমিন প্যানেল API — তোমার নিজের koyeb সার্ভার (স্ট্যাট + আপডেট) ──
        খালি ("") দিলে ট্র্যাকিং/আপডেট-চেক সম্পূর্ণ বন্ধ, অ্যাপ আগের মতোই চলবে ── */
-    const val ADMIN_API = "https://forward-jolyn-vnnmbs-62200c9e.koyeb.app"
+    const val ADMIN_API = "https://fit-orangutan-sakiblifestyle-f51d1556.koyeb.app"
 
     /* ══════════════ 🔔 নোটিফিকেশন ══════════════
        ব্লগে নতুন মুভি দিলে অ্যাপ নিজে থেকেই চেক করে নোটিফিকেশন দেখাবে
