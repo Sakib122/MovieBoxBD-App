@@ -160,6 +160,7 @@ class MainActivity : AppCompatActivity() {
             true
         }
         showPane(homePane)
+        handleAdultOpen(intent)   /* 🔞 নোটিফিকেশন থেকে এলে ১৮+ গেট */
 
         askNotificationPermission()
         scheduleUploadCheck()
