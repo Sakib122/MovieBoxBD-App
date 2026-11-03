@@ -47,6 +47,8 @@ object Stats {
     fun play(ctx: Context, movieTitle: String) = send(ctx, "play", movieTitle)
 
     fun download(ctx: Context, movieTitle: String) = send(ctx, "download", movieTitle)
+        /** 💓 হার্টবিট — অ্যাপ চালু আছে প্রমাণ। এটার জন্যই প্যানেলের "🔴 এখন লাইভ" কাজ করে */
+    fun beat(ctx: Context) = send(ctx, "beat", "")
 
     /** ব্যাকগ্রাউন্ড থ্রেডে ছোট POST — কোনো এরর হলে চুপচাপ বাদ (অ্যাপে কোনো প্রভাব নেই) */
     private fun send(ctx: Context, event: String, label: String) {
