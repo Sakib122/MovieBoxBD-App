@@ -68,6 +68,7 @@ class PlayerActivity : AppCompatActivity() {
     private var retryCount = 0
     private var url: String = ""
     private var title: String = ""
+    private var movieName: String = ""   /* 🏷️ আসল মুভির নাম (ক্রেডিট + প্যানেল) */
 
     private lateinit var pv: PlayerView
     private lateinit var gestureHint: TextView
@@ -159,6 +160,7 @@ class PlayerActivity : AppCompatActivity() {
 
         url = intent.getStringExtra("url") ?: run { finish(); return }
         title = intent.getStringExtra("title") ?: "MovieBoxBD"
+        movieName = intent.getStringExtra("movie_name") ?: ""
 
         pv = findViewById(R.id.playerView)
         gestureHint = findViewById(R.id.gestureHint)
@@ -173,7 +175,7 @@ class PlayerActivity : AppCompatActivity() {
         btnMSub = findViewById(R.id.btnMSub)
         btnMScale = findViewById(R.id.btnMScale)
         lockLayer = findViewById(R.id.lockLayer)
-        findViewById<TextView>(R.id.pTitle).text = title
+        findViewById<TextView>(R.id.pTitle).text = creditTitle()
         findViewById<ImageButton>(R.id.btnPBack).setOnClickListener { finish() }
         findViewById<View>(R.id.btnRetry).setOnClickListener { retry() }
         btnErrTg.setOnClickListener { openTelegramChannel() }
@@ -412,6 +414,30 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /* ── 🏷️ প্লেয়ারের উপরের ক্রেডিট + প্যানেলের লেবেল ──────────────
+     *  ক্রেডিট: MovieBoxBD.xyz ✦ মুভির নাম (720p) / (EP 128)
+     *  প্যানেল: প্লে ইভেন্টেও আসল নাম যাবে ("নবাব এনজেল (720p)") */
+    private fun mediaTag(): String? {
+        val q = Regex("""\b\d{3,4}\s?p\b""", RegexOption.IGNORE_CASE)
+            .find(title)?.value?.replace(" ", "")?.lowercase()
+        if (q != null) return q
+        return Regex("""(?i)\bEP\s*\d+""").find(title)?.value
+    }
+
+    private fun creditTitle(): String {
+        val tag = mediaTag()
+        val name = movieName.ifBlank { title }
+        return if (tag != null && !name.equals(title, true))
+            "${Config.BRAND} ✦ $name ($tag)"
+        else "${Config.BRAND} ✦ $name"
+    }
+
+    private fun statLabel(): String {
+        if (movieName.isBlank() || title.equals(movieName, true)) return title
+        val tag = mediaTag()
+        return if (tag != null) "$movieName ($tag)" else "$movieName ($title)"
+    }
+    
     /* ── 🔊 MX Player ফলব্যাক (সাউন্ড সাপোর্ট নেই এমন ফোনের জন্য) ──────
      *  এই ফোনে মুভির Dolby সাউন্ড না চললে MX Player/VLC দিয়ে খুলতে বলে —
      *  ইনস্টল থাকলে সঙ্গে সঙ্গেই ওই মুভি ওখানে চালু হয়ে যায় (সাউন্ডসহ),
@@ -632,7 +658,7 @@ class PlayerActivity : AppCompatActivity() {
                     if (!started) {
                         started = true
                         player?.play()
-                        Stats.play(this@PlayerActivity, title) /* 📊 অ্যাডমিন প্যানেলে এই মুভির ভিউ */
+                        Stats.play(this@PlayerActivity, statLabel()) /* 📊 প্যানেলে আসল নাম + কোয়ালিটি */
                     }
                     /* 🔊 এই ফোনে সাউন্ড না চললে অন্য ট্র্যাকে অটো-সুইচ */
                     ensureAudioCompat()
