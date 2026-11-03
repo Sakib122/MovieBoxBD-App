@@ -54,6 +54,12 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
             val published = entry.optJSONObject("published")?.optString("\$t") ?: ""
             if (published.isEmpty()) return
 
+            /* 🔞 এই পোস্টটা কি এডাল্ট? (পোস্টের লেবেল দেখে) */
+            val labels = entry.optJSONArray("category")?.let { arr ->
+                (0 until arr.length()).map { arr.optJSONObject(it)?.optString("term").orEmpty() }
+            } ?: emptyList()
+            val isAdult = labels.any { l -> Config.ADULT_LABELS.any { a -> l.equals(a, true) } }
+
             val last = p.getString("last_post", "") ?: ""
             if (last.isEmpty()) {
                 /* প্রথমবার — শুধু মনে রাখবে, নোটিফিকেশন দেবে না */
@@ -61,7 +67,7 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
             } else if (published > last) {
                 p.edit().putString("last_post", published).apply()
                 val poster = findPoster(content)
-                notifyNew(ctx, title, poster)
+                notifyNew(ctx, title, poster, isAdult)
             }
         } catch (_: Exception) {
         }
@@ -130,7 +136,7 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
         }
     }
 
-    private fun notifyNew(ctx: Context, title: String, posterUrl: String?) {
+    private fun notifyNew(ctx: Context, title: String, posterUrl: String?, isAdult: Boolean) {
         try {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (Build.VERSION.SDK_INT >= 26) {
@@ -146,15 +152,23 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
                 != PackageManager.PERMISSION_GRANTED
             ) return
 
+            /* 🔞 এডাল্ট হলে ট্যাপে সরাসরি বয়স-কনফার্ম → AdultActivity,
+               নরমাল হলে আগের মতো হোম খুলবে */
             val intent = Intent(ctx, MainActivity::class.java)
+            if (isAdult) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                intent.putExtra("open_adult", true)
+            }
             val pi = PendingIntent.getActivity(
                 ctx, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
+            val head = if (isAdult) "🔞 নতুন 18+ আপলোড এসেছে!" else "🎬 নতুন মুভি এসেছে!"
+
             val b = NotificationCompat.Builder(ctx, "new_upload")
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("🎬 নতুন মুভি এসেছে!")
+                .setContentTitle(head)
                 .setContentText(title)
                 .setContentIntent(pi)
                 .setAutoCancel(true)
@@ -170,7 +184,7 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
                     b.setStyle(
                         NotificationCompat.BigPictureStyle()
                             .bigPicture(big)
-                            .setBigContentTitle("🎬 নতুন মুভি এসেছে!")
+                            .setBigContentTitle(head)
                             .setSummaryText("MovieBoxBD — ${title.take(60)}")
                     )
                 } else {
