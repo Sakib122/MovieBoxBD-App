@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         searchSpinner = findViewById(R.id.searchSpinner)
         searchEmpty = findViewById(R.id.searchEmpty)
 
-        adapter = MovieAdapter(items) { openMovie(it) }
+        adapter = MovieAdapter(items, blurAdult = true) { openMovie(it) }
         recycler.layoutManager = GridLayoutManager(this, 2)
         recycler.adapter = adapter
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        searchAdapter = MovieAdapter(searchItems) { openMovie(it) }
+        searchAdapter = MovieAdapter(searchItems, blurAdult = true) { openMovie(it) }
         searchGrid.layoutManager = GridLayoutManager(this, 2)
         searchGrid.adapter = searchAdapter
 
@@ -259,6 +259,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openMovie(m: MovieItem) {
+        /* 🔞 এডাল্ট কার্ডে ক্লিক — আগে ১৮+ পপআপ, "হ্যাঁ" দিলে তবেই খুলবে */
+        if (BloggerApi.isAdult(m)) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("🔞 18+ Adult Content")
+                .setMessage("এই কনটেন্ট শুধুমাত্র ১৮ বছর বা তার বেশি বয়সীদের জন্য।\n\nআপনি কি ১৮ বছর পার করেছেন?")
+                .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
+                    Ads.onMovieOpened(this) /* 💰 পপআন্ডার */
+                    startActivity(DetailActivity.intent(this, m))
+                }
+                .setNegativeButton("না", null)
+                .setCancelable(true)
+                .show()
+            return
+        }
         Ads.onMovieOpened(this) /* 💰 পপআন্ডার (প্রতি ২ বারে) */
         startActivity(DetailActivity.intent(this, m))
     }
@@ -275,7 +289,6 @@ class MainActivity : AppCompatActivity() {
                 val p2 = try { BloggerApi.load(null, null, 1 + p1.items.size) } catch (_: Exception) { FeedPage(emptyList(), 0) }
                 val all = ArrayList(p1.items)
                 all.addAll(p2.items)
-                all.removeAll { BloggerApi.isAdult(it) }   /* 🔞 এডাল্ট হোমে আসবে না (এখন p2-এরটাও বাদ পড়বে) */
 
                 /* 🏷️ English / Horror / Korean — সাম্প্রতিক পোস্টে কম থাকে, তাই নিজের লেবেল-ফিড
                    থেকে সর্বশেষ ১০টা করে আনি → হিন্দি/বাংলার মতোই সেকশন ভরা দেখাবে (৩ থ্রেডে দ্রুত) */
@@ -290,7 +303,7 @@ class MainActivity : AppCompatActivity() {
                 tEn.start(); tHo.start(); tKo.start(); tAn.start()
                 tEn.join(8000); tHo.join(8000); tKo.join(8000); tAn.join(8000)
 
-                val heroes = all.take(4)   /* 🎬 হিরো স্লাইডার — সর্বশেষ ৪টা */
+                val heroes = all.filter { !BloggerApi.isAdult(it) }.take(4)   /* 🎬 হিরো স্লাইডার — সর্বশেষ ৪টা (এডাল্ট বাদ) */
 
                 val series = all.filter { BloggerApi.isWebSeries(it.title, it.labels) }
                 val hindi = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
@@ -327,9 +340,9 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    /** 🏷️ এক লেবেলের সর্বশেষ পোস্টগুলা (হোম সেকশনের জন্য) — এডাল্ট বাদ */
+    /** 🏷️ এক লেবেলের সর্বশেষ পোস্টগুলা (হোম সেকশনের জন্য) — এডাল্ট থাকলে ঝাপসা দেখাবে */
     private fun labelFeed(label: String): List<MovieItem> = try {
-        BloggerApi.load(label, null, 1).items.filter { !BloggerApi.isAdult(it) }
+        BloggerApi.load(label, null, 1).items
     } catch (_: Exception) {
         emptyList()
     }
@@ -398,8 +411,7 @@ class MainActivity : AppCompatActivity() {
                     loading = false
                     spinner.visibility = View.GONE
                     val fetched = page.items.size
-                    val fresh = page.items.filter { !BloggerApi.isAdult(it) } /* 🔞 এডাল্ট বাদ */
-                    items.addAll(fresh)
+                    items.addAll(page.items)   /* 🔞 এডাল্ট আর ডিলিট হয় না — ঝাপসা কার্ড + ১৮+ ব্যাজ */
                     nextIndex = start + fetched          /* আসল সংখ্যা — নাহলে পেজ স্কিপ হবে */
                     if (fetched < 20) endReached = true
                     adapter.notifyDataSetChanged()
@@ -445,7 +457,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     searchSpinner.visibility = View.GONE
                     searchItems.clear()
-                    searchItems.addAll(page.items.filter { !BloggerApi.isAdult(it) }) /* 🔞 এডাল্ট বাদ */
+                    searchItems.addAll(page.items)   /* 🔞 সার্চেও এডাল্ট আসবে — ঝাপসা কার্ড + পপআপ গেট */
                     searchAdapter.notifyDataSetChanged()
                     if (searchItems.isEmpty()) searchEmpty.visibility = View.VISIBLE
                 }
