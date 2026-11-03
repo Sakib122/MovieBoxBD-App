@@ -29,6 +29,39 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
+
+            <!-- 🔞 এডাল্ট কার্ডের কালো পর্দা (ডিফল্ট লুকানো) -->
+            <View
+                android:id="@+id/adultScrim"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:background="#66000000"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="@id/poster"
+                app:layout_constraintEnd_toEndOf="@id/poster"
+                app:layout_constraintStart_toStartOf="@id/poster"
+                app:layout_constraintTop_toTopOf="@id/poster" />
+
+            <!-- 🔞 লাল ১৮+ ব্যাজ (ডিফল্ট লুকানো) -->
+            <TextView
+                android:id="@+id/adultBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_adult_badge"
+                android:elevation="4dp"
+                android:paddingStart="10dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="3dp"
+                android:text="18+"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="@id/poster"
+                app:layout_constraintEnd_toEndOf="@id/poster"
+                app:layout_constraintStart_toStartOf="@id/poster"
+                app:layout_constraintTop_toTopOf="@id/poster" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <TextView
