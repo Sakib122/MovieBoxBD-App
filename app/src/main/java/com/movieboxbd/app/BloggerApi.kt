@@ -263,6 +263,10 @@ object BloggerApi {
         return Regex("s\\d{1,2}\\b|\\bep\\b|episode|ওয়েব সিরিজ|season").containsMatchIn(t)
     }
 
+        /* 🔞 এই পোস্টটা কি এডাল্ট? (ব্লগে "Adult" লেবেল দিলেই ধরা পড়বে) */
+    fun isAdult(m: MovieItem): Boolean =
+        m.labels.any { l -> Config.ADULT_LABELS.any { a -> l.equals(a, true) } }
+
     /* ── পোস্টের HTML থেকে পোস্টার ───────────────────────────── */
 
     private val IMG_RE = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
