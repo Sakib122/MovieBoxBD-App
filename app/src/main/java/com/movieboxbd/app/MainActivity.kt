@@ -66,6 +66,7 @@ class MainActivity : AppCompatActivity() {
     private var endReached = false
     private var tab = R.id.navHome
     private var homeLoaded = false
+    private var homeAdapter: HomeAdapter? = null   /* 🎬 হিরো স্লাইডার থামানো/চালানোর জন্য */    
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -253,25 +254,45 @@ class MainActivity : AppCompatActivity() {
                 val p1 = BloggerApi.load(null, null, 1)
                 val p2 = try { BloggerApi.load(null, null, 1 + p1.items.size) } catch (_: Exception) { FeedPage(emptyList(), 0) }
                 val all = ArrayList(p1.items)
-                all.removeAll { BloggerApi.isAdult(it) }   /* 🔞 এডাল্ট হোমে আসবে না */
                 all.addAll(p2.items)
-                val hero = all.firstOrNull()
+                all.removeAll { BloggerApi.isAdult(it) }   /* 🔞 এডাল্ট হোমে আসবে না (এখন p2-এরটাও বাদ পড়বে) */
+
+                /* 🏷️ English / Horror / Korean — সাম্প্রতিক পোস্টে কম থাকে, তাই নিজের লেবেল-ফিড
+                   থেকে সর্বশেষ ১০টা করে আনি → হিন্দি/বাংলার মতোই সেকশন ভরা দেখাবে (৩ থ্রেডে দ্রুত) */
+                var english: List<MovieItem> = emptyList()
+                var horror: List<MovieItem> = emptyList()
+                var korean: List<MovieItem> = emptyList()
+                val tEn = Thread { english = labelFeed("English") }
+                val tHo = Thread { horror = labelFeed("Horror") }
+                val tKo = Thread { korean = labelFeed("Korean") }
+                tEn.start(); tHo.start(); tKo.start()
+                tEn.join(8000); tHo.join(8000); tKo.join(8000)
+
+                val heroes = all.take(4)   /* 🎬 হিরো স্লাইডার — সর্বশেষ ৪টা */
+
                 val series = all.filter { BloggerApi.isWebSeries(it.title, it.labels) }
                 val hindi = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
                         it.labels.any { l -> l.equals("Hindi", true) || l.equals("Hindi Dubbed", true) } }
                 val bangla = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
                         it.labels.any { l -> Config.BANGLA_LABELS.any { b -> l.equals(b, true) } } }
                 val dub = all.filter { it.labels.any { l -> Config.BANGLA_DUB_LABELS.any { b -> l.equals(b, true) } } }
+
                 val sections = ArrayList<Pair<String, List<MovieItem>>>()
                 sections.add("🔥 নতুন আপলোড" to all.take(10))
                 if (series.isNotEmpty()) sections.add("📺 ওয়েব সিরিজ" to series.take(10))
                 if (dub.isNotEmpty()) sections.add("🎙️ বাংলা ডাব" to dub.take(10))
                 if (hindi.isNotEmpty()) sections.add("🇮🇳 হিন্দি মুভি" to hindi.take(10))
                 if (bangla.isNotEmpty()) sections.add("🇧🇩 বাংলা মুভি" to bangla.take(10))
+                if (english.isNotEmpty()) sections.add("🇬🇧 ইংলিশ মুভি" to english.take(10))
+                if (horror.isNotEmpty()) sections.add("👻 হরর মুভি" to horror.take(10))
+                if (korean.isNotEmpty()) sections.add("🇰🇷 কোরিয়ান মুভি" to korean.take(10))
+
                 runOnUiThread {
                     homeSpinner.visibility = View.GONE
                     homeLoaded = true
-                    homeList.adapter = HomeAdapter(hero, sections) { openMovie(it) }
+                    homeAdapter?.pauseHero()
+                    homeAdapter = HomeAdapter(heroes, sections) { openMovie(it) }
+                    homeList.adapter = homeAdapter
                     if (all.isEmpty()) homeEmpty.visibility = View.VISIBLE
                 }
             } catch (e: Exception) {
@@ -281,6 +302,13 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    /** 🏷️ এক লেবেলের সর্বশেষ পোস্টগুলা (হোম সেকশনের জন্য) — এডাল্ট বাদ */
+    private fun labelFeed(label: String): List<MovieItem> = try {
+        BloggerApi.load(label, null, 1).items.filter { !BloggerApi.isAdult(it) }
+    } catch (_: Exception) {
+        emptyList()
     }
 
     /* ══════════ 🎬 মুভি / 📺 ওয়েব সিরিজ গ্রিড ══════════ */
@@ -453,10 +481,12 @@ class MainActivity : AppCompatActivity() {
         Stats.beat(this)
         beatUi.removeCallbacks(beatTick)
         beatUi.postDelayed(beatTick, 60_000L)
+        homeAdapter?.resumeHero()          /* 🎬 হোমে ফিরলেই স্লাইডার চালু */
     }
 
     override fun onPause() {
         super.onPause()
         beatUi.removeCallbacks(beatTick)
+        homeAdapter?.pauseHero()           /* 🎬 অ্যাপ না দেখলে স্লাইডার থামবে (ব্যাটারি বাঁচবে) */
     }
 }
