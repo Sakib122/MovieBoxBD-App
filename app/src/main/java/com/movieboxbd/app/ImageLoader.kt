@@ -17,22 +17,30 @@ object ImageLoader {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
-    fun load(view: ImageView, url: String?) {
+    fun load(view: ImageView, url: String?, pixelate: Boolean = false) {
         if (url.isNullOrBlank()) return
-        view.tag = url
-        val hit = cache.get(url)
+        val key = if (pixelate) "$url|px" else url
+        view.tag = key
+        val hit = cache.get(key)
         if (hit != null) {
             view.setImageBitmap(hit)
             return
         }
         view.setImageDrawable(null)
         Thread {
-            val bmp = download(url)
-            if (bmp != null) {
-                cache.put(url, bmp)
-                view.post { if (view.tag == url) view.setImageBitmap(bmp) }
-            }
+            var bmp = download(url) ?: return@Thread
+            if (pixelate) bmp = pixelate(bmp)   /* 🔞 এডাল্ট — ঝাপসা */
+            cache.put(key, bmp)
+            view.post { if (view.tag == key) view.setImageBitmap(bmp) }
         }.start()
+    }
+
+    /* 🔞 এডাল্ট পোস্টার — পিক্সেল করে ঝাপসা, কেউ চিনতে পারবে না (কোনো লাইব্রেরি লাগে না) */
+    private fun pixelate(src: Bitmap): Bitmap {
+        val w = (src.width / 16).coerceIn(6, 40)
+        val h = (src.height / 16).coerceIn(6, 40)
+        val small = Bitmap.createScaledBitmap(src, w, h, true)
+        return Bitmap.createScaledBitmap(small, src.width, src.height, true)
     }
 
     private fun download(url: String): Bitmap? {
