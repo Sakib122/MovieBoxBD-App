@@ -5,13 +5,43 @@
     android:orientation="vertical"
     android:padding="4dp">
 
-    <ImageView
-        android:id="@+id/smallImg"
+    <FrameLayout
         android:layout_width="104dp"
-        android:layout_height="156dp"
-        android:background="@color/surface2"
-        android:contentDescription="poster"
-        android:scaleType="centerCrop" />
+        android:layout_height="156dp">
+
+        <ImageView
+            android:id="@+id/smallImg"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/surface2"
+            android:contentDescription="poster"
+            android:scaleType="centerCrop" />
+
+        <!-- 🔞 এডাল্ট কার্ডের কালো পর্দা (ডিফল্ট লুকানো) -->
+        <View
+            android:id="@+id/smallScrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#66000000"
+            android:visibility="gone" />
+
+        <!-- 🔞 লাল ১৮+ ব্যাজ (ডিফল্ট লুকানো) -->
+        <TextView
+            android:id="@+id/smallBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_adult_badge"
+            android:paddingStart="8dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp"
+            android:text="18+"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/smallName"
