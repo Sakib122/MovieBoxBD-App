@@ -193,6 +193,7 @@ class DetailActivity : AppCompatActivity() {
             val i = Intent(this, PlayerActivity::class.java)
             i.putExtra("url", url)
             i.putExtra("title", name)
+            i.putExtra("movie_name", movie?.title ?: "")   /* 🏷️ ক্রেডিটের জন্য আসল মুভির নাম */
             startActivity(i)
         } catch (_: Exception) {}
     }
