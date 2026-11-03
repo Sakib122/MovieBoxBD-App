@@ -28,6 +28,7 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
     Worker(context, params) {
 
     override fun doWork(): Result {
+        try { Stats.beat(applicationContext) } catch (_: Exception) {}   /* 💓 ১৫ মিনিট পরপর ব্যাকগ্রাউন্ড হার্টবিট */
         try {
             if (Config.NOTIFY_NEW_UPLOADS) checkAndNotify(applicationContext)
         } catch (_: Exception) {
