@@ -71,11 +71,16 @@ object Config {
         return pool[(hour % pool.size).toInt()]
     }
 
-    /** ▶ প্লের আগে অ্যাডে কত সেকেন্ড থাকতে হবে (৫–১০, যেটা বেস্ট) */
-    const val AD_WATCH_SECONDS = 10
+    /* এডিট ১: খুঁজো "AD_WATCH_SECONDS = 10" লাইন — ১০ বদলে ৫ করো */
+    const val AD_WATCH_SECONDS = 5
 
-    /** মুভি কার্ডে কতবার ক্লিকে ১ বার পপআন্ডার খুলবে (২ = প্রতি ২ বারে ১ বার) */
-    const val POPUNDER_EVERY_N = 2
+    /* এডিট ২: খুঁজো "POPUNDER_EVERY_N = 2" লাইন — ২ বদলে ০ করো */
+    const val POPUNDER_EVERY_N = 0
+
+    
+    /* এডিট ৩: POPUNDER_EVERY_N লাইনটার ঠিক নিচে এই নতুন লাইনটা বসাও */
+    /** কত মিনিট পরপর Direct Link খুলবে (৩ = এর মধ্যে সব কাজ ঝামেলা ছাড়া, সরাসরি) */
+    const val DIRECT_GAP_MIN = 3
 
     /* ── 320×50 ব্যানার (হোম + ডিটেইল পেজের নিচে)। খালি ("") দিলে দেখাবে না ── */
     const val ADSTERRA_BANNER_320x50 = "<script type='text/javascript'>\n" +
