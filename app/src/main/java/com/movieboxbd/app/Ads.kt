@@ -68,29 +68,42 @@ object Ads {
         }
     }
 
-    /* এডিট ৩: পুরনো requestAction ফাংশনটা পুরোটা মুছে এটা বসাও */
-    fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = "") {
+    /* এডিট ৩ (ফিক্স): true রিটার্ন মানে "৩ মিনিটের মধ্যে এড দেখা হয়েছে — কলার এখনই নিজে কাজটা করবে"।
+       false মানে "এড খুলছে — ফিরে এসে গেট শেষ হলে কাজটা হবে"। */
+    fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = ""): Boolean {
         val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
-        /* 🆕 সদ্য (৩ মিনিটের মধ্যে) Direct Link খোলা হলে আর বিরক্ত নয় —
-           কোনো লিংক খুলবে না, অপেক্ষাও হবে না, কাজটা সাথে সাথেই হবে */
+        /* 🆓 সদ্য (৩ মিনিটের মধ্যে) Direct Link খোলা হলে আর বিরক্ত নয়।
+           আগের বাগ এখানেই ছিল: কাজটা পেন্ডিং সেভ হয়ে ঝুলে থাকত, এড খুলত না
+           বলে কাজ শুরুই হতো না; পরে অন্য মুভির পেজ খুললে পুরনো পেন্ডিংটাই
+           ফায়ার হয়ে ভুল মুভি প্লে/ডাউনলোড হতো।
+           এখন এড-ফ্রি হলে কিছুই সেভ হয় না — কলার সাথে সাথেই কাজটা করে। */
         val recent = now - p.getLong(K_DIRECT_TS, 0L) < Config.DIRECT_GAP_MIN * 60_000L
+        if (recent) return true
         p.edit()
-            .putLong(K_TS, if (recent) now - Config.AD_WATCH_SECONDS * 1000L else now)
+            .putLong(K_TS, now)
             .putBoolean(K_PEND, true)
             .putInt(K_TYPE, type)
             .putString(K_URL, url)
             .putString(K_EXTRA, extra)
             .putString(K_TITLE, title)
             .apply()
-        if (!recent) openDirectLink(activity, adultNow)
+        openDirectLink(activity, adultNow)
+        return false
     }
 
     /** onResume-এ ডাকো — বাকি সেকেন্ড রিটার্ন করে; -1 মানে কোনো পেন্ডিং কাজ নেই; 0 মানে এখনই */
     fun pendingRemaining(activity: Activity): Int {
         val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         if (!p.getBoolean(K_PEND, false)) return -1
-        val elapsed = System.currentTimeMillis() - p.getLong(K_TS, 0)
+        val ts = p.getLong(K_TS, 0)
+        /* 🧹 ৩০ মিনিটের পুরনো পেন্ডিং আর কার্যকর হবে না — নাহলে অ্যাপ খুললেই
+           দিন আগে ক্লিক করা মুভি হঠাৎ প্লে/ডাউনলোড হয়ে যেত */
+        if (ts > 0 && System.currentTimeMillis() - ts > 30 * 60_000L) {
+            p.edit().putBoolean(K_PEND, false).remove(K_URL).remove(K_EXTRA).apply()
+            return -1
+        }
+        val elapsed = System.currentTimeMillis() - ts
         val need = Config.AD_WATCH_SECONDS * 1000L
         val remain = ((need - elapsed) / 1000L).toInt()
         return if (remain > 0) remain else 0
