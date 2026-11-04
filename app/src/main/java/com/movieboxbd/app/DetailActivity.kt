@@ -70,6 +70,7 @@ class DetailActivity : AppCompatActivity() {
 
         val m = intent.getSerializableExtra("item") as? MovieItem ?: run { finish(); return }
         movie = m
+        Ads.adultNow = BloggerApi.isAdult(m)   /* 🔞 ১৮+ মুভি হলে গেটের অ্যাডও ১৮+ */      
         series = BloggerApi.isWebSeries(m.title, m.labels)
         Stats.view(this, m.title) /* 📊 অ্যাডমিন প্যানেলে এই মুভির ইম্প্রেশন */
 
