@@ -356,47 +356,40 @@ class DetailActivity : AppCompatActivity() {
 
     /** 📥 ডাউনলোড ফাইলের সুন্দর নাম: "MovieBoxBD.xyz — মুভির নাম [720p WEB-DL]"
      *  ইউজার যেন ডাউনলোড করা ফাইলটা দেখেই বুঝতে পারে কোন মুভি */
-    private fun downloadName(rawName: String): String {
-        val sb = StringBuilder(Config.BRAND)
-        val t = movie?.title?.trim().orEmpty()
-        if (t.isNotEmpty()) sb.append(" — ").append(t)
-        val link = rawName.trim()
-        if (link.isNotEmpty() && !link.equals(t, true)) {
-            /* "720p WEB-DL · 1.08 GB" → শুধু "720p WEB-DL"; EP/সিজন নাম হলে পুরোটা */
-            val q = link.substringBefore("·").trim()
-            if (q.startsWith("EP") || q.startsWith("পুরো") || q.startsWith("ফুল") ||
-                q.contains("সিজন") || q.contains("সিরিজ")) {
-                sb.append(" — ").append(q)
-            } else if (q.isNotEmpty()) {
-                sb.append(" [").append(q).append("]")
-            }
-        }
-        /* ফাইলনেমে নিষিদ্ধ চিহ্ন বাদ (বাংলা অক্ষর থাকবে — Android সাপোর্ট করে) */
-        var s = sb.toString().replace(Regex("[\\\\/:*?\"<>|]"), " ")
-            .replace(Regex("\\s+"), " ").trim()
-        if (s.length > 90) s = s.take(90).trim()
-        return s
-    }
-
     private fun download(streamUrl: String, rawName: String) {
         if (streamUrl.isBlank()) {
             Toast.makeText(this, "ডাউনলোড লিংক নেই", Toast.LENGTH_SHORT).show()
             return
         }
+        /* 🧲 ডাউনলোড এখন ক্রোমে — প্রোগ্রেস নোটিফিকেশন + পজ/রিজিউম (সব ফোনে কাজ করে)।
+           ক্রোম না থাকলে অন্য ব্রাউজার, সেটাও না থাকলে আগের ডাউনলোড ম্যানেজার। */
         try {
-            val name = downloadName(rawName)
-            val ext = if (streamUrl.lowercase().contains(".mp4")) ".mp4" else ".mkv"
-            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            val req = DownloadManager.Request(Uri.parse(streamUrl))
-                .setTitle(name)
-                .setDescription("MovieBoxBD ডাউনলোড")
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name + ext)
-            dm.enqueue(req)
-            Stats.download(this, movie?.title ?: rawName) /* 📊 অ্যাডমিন প্যানেলে ডাউনলোড কাউন্ট */
-            Toast.makeText(this, "📥 ডাউনলোড শুরু হয়েছে", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "ডাউনলোড শুরু করা যায়নি", Toast.LENGTH_SHORT).show()
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse(streamUrl))
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            i.setPackage("com.android.chrome")
+            startActivity(i)
+        } catch (_: Exception) {
+            try {
+                val i = Intent(Intent.ACTION_VIEW, Uri.parse(streamUrl))
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(i)   /* ক্রোম নেই — ফোনের ডিফল্ট ব্রাউজার */
+            } catch (_: Exception) {
+                /* ব্রাউজারই নেই — পুরনো ডাউনলোড ম্যানেজার ফলব্যাক */
+                try {
+                    val name = downloadName(rawName)
+                    val ext = if (streamUrl.lowercase().contains(".mp4")) ".mp4" else ".mkv"
+                    val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                    val req = DownloadManager.Request(Uri.parse(streamUrl))
+                        .setTitle(name)
+                        .setDescription("MovieBoxBD ডাউনলোড")
+                        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name + ext)
+                    dm.enqueue(req)
+                } catch (_: Exception) {}
+            }
         }
-    }
+        Stats.download(this, movie?.title ?: rawName) /* 📊 অ্যাডমিন প্যানেলে ডাউনলোড কাউন্ট */
+        Toast.makeText(this, "📥 ক্রোমে খুলেছে — ভিডিও চললে প্লেয়ারের ⋮ → Download চাপো (পজ/রিজিউম করা যায়)", Toast.LENGTH_LONG).show()
+     }
+  }
 }
