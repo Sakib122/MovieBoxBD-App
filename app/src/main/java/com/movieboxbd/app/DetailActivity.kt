@@ -407,4 +407,3 @@ class DetailActivity : AppCompatActivity() {
         Toast.makeText(this, "📥 ক্রোমে খুলেছে — ভিডিও চললে প্লেয়ারের ⋮ → Download চাপো (পজ/রিজিউম করা যায়)", Toast.LENGTH_LONG).show()
      }
   }
-}
