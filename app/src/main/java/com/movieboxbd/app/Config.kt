@@ -62,8 +62,10 @@ object Config {
         "https://asiafilm.org/4/1952b9f3548cd57e994e610fde24e41f"
     )
 
-    /** এই মুহূর্তে কোন Direct Link চলবে (ঘণ্টা অনুযায়ী ঘুরে ঘুরে বদলায়) */
-    fun directLinkNow(): String {
+    /** এই মুহূর্তে কোন Direct Link চলবে। ১৮+ মুভি হলে অ্যাডাল্ট লিংক,
+        নাহলে ঘণ্টা অনুযায়ী ঘুরে ঘুরে বদলায় */
+    fun directLinkNow(adult: Boolean = false): String {
+        if (adult && DIRECT_LINK_ADULT.isNotBlank()) return DIRECT_LINK_ADULT
         val pool = DIRECT_LINKS.filter { it.isNotBlank() }
         if (pool.isEmpty()) return ""
         if (pool.size == 1) return pool[0]
@@ -81,6 +83,10 @@ object Config {
     /* এডিট ৩: POPUNDER_EVERY_N লাইনটার ঠিক নিচে এই নতুন লাইনটা বসাও */
     /** কত মিনিট পরপর Direct Link খুলবে (৩ = এর মধ্যে সব কাজ ঝামেলা ছাড়া, সরাসরি) */
     const val DIRECT_GAP_MIN = 3
+
+    /* 🔞 ১৮+ মুভির গেটে শুধু এই অ্যাডাল্ট Direct Link যাবে (Adsterra)।
+       খালি ("") দিলে ১৮+ মুভিও সাধারণ রোটেশন ব্যবহার করবে */
+    const val DIRECT_LINK_ADULT = "https://auctionr.org/4/ef5b10414fe8fdd3f602e74bcdd4225c"
 
     /* ── 320×50 ব্যানার (হোম + ডিটেইল পেজের নিচে)। খালি ("") দিলে দেখাবে না ── */
     const val ADSTERRA_BANNER_320x50 = "<script type='text/javascript'>\n" +
