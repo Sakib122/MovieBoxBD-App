@@ -57,6 +57,7 @@ object Config {
            "https://asiafilm.org/4/xxxxxxxxxxxx",
        লিংক ১টাই রাখলে সেটাই সবসময় চলবে — কোনো সমস্যা নেই।  */
     val DIRECT_LINKS = listOf(
+        "https://uplcm.com/4/10918781",
         "https://asiafilm.org/4/dd496e8de5fdbe10f2ccf3defc93c342",
         "https://asiafilm.org/4/1952b9f3548cd57e994e610fde24e41f"
     )
