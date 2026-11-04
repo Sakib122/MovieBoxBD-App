@@ -37,12 +37,15 @@ object Ads {
     private const val K_MOV = "movie_open_count"
     private const val K_DIRECT_TS = "direct_link_ts"
 
+    /* 🔞 এখন যে মুভির পেজ খোলা সেটা ১৮+ কি না — DetailActivity সেট করে */
+    var adultNow: Boolean = false
+
     /** গেট শেষ হলে যেটা করতে হবে */
     data class PendingAction(val type: Int, val url: String, val title: String, val extra: String)
 
     /* এডিট ২: পুরনো openDirectLink ফাংশনটা পুরোটা মুছে এটা বসাও */
-    fun openDirectLink(ctx: Context) {
-        val url = Config.directLinkNow()
+    fun openDirectLink(ctx: Context, adult: Boolean = false) {
+        val url = Config.directLinkNow(adult)
         if (url.isBlank()) return
         try {
             ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
@@ -80,7 +83,7 @@ object Ads {
             .putString(K_EXTRA, extra)
             .putString(K_TITLE, title)
             .apply()
-        if (!recent) openDirectLink(activity)
+        if (!recent) openDirectLink(activity, adultNow)
     }
 
     /** onResume-এ ডাকো — বাকি সেকেন্ড রিটার্ন করে; -1 মানে কোনো পেন্ডিং কাজ নেই; 0 মানে এখনই */
