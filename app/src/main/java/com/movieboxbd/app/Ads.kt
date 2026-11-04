@@ -35,15 +35,18 @@ object Ads {
     private const val K_EXTRA = "gate_extra"
     private const val K_TITLE = "gate_title"
     private const val K_MOV = "movie_open_count"
+    private const val K_DIRECT_TS = "direct_link_ts"
 
     /** গেট শেষ হলে যেটা করতে হবে */
     data class PendingAction(val type: Int, val url: String, val title: String, val extra: String)
 
-    /** Direct Link ব্রাউজারে খোলো (ঘণ্টাভিত্তিক রোটেশন — CPM বাঁচাতে) */
+    /* এডিট ২: পুরনো openDirectLink ফাংশনটা পুরোটা মুছে এটা বসাও */
     fun openDirectLink(ctx: Context) {
         val url = Config.directLinkNow()
         if (url.isBlank()) return
         try {
+            ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+                .edit().putLong(K_DIRECT_TS, System.currentTimeMillis()).apply()
             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (_: Exception) {
         }
@@ -62,23 +65,22 @@ object Ads {
         }
     }
 
-    /**
-     * যেকোনো বাটন চাপলে ডাকো — Direct Link খুলে গেট চালু করে।
-     *  type   = ACT_PLAY / ACT_DOWNLOAD / ACT_TELEGRAM / ACT_BROWSER
-     *  url    = অ্যাকশনের মূল লিংক (প্লে=স্ট্রিম, টেলিগ্রাম=t.me, ব্রাউজার=পেজ)
-     *  extra  = দরকার হলে বাড়তি লিংক (ডাউনলোডের ফলব্যাক স্ট্রিম লিংক)
-     */
+    /* এডিট ৩: পুরনো requestAction ফাংশনটা পুরোটা মুছে এটা বসাও */
     fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = "") {
         val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        /* 🆕 সদ্য (৩ মিনিটের মধ্যে) Direct Link খোলা হলে আর বিরক্ত নয় —
+           কোনো লিংক খুলবে না, অপেক্ষাও হবে না, কাজটা সাথে সাথেই হবে */
+        val recent = now - p.getLong(K_DIRECT_TS, 0L) < Config.DIRECT_GAP_MIN * 60_000L
         p.edit()
-            .putLong(K_TS, System.currentTimeMillis())
+            .putLong(K_TS, if (recent) now - Config.AD_WATCH_SECONDS * 1000L else now)
             .putBoolean(K_PEND, true)
             .putInt(K_TYPE, type)
             .putString(K_URL, url)
             .putString(K_EXTRA, extra)
             .putString(K_TITLE, title)
             .apply()
-        openDirectLink(activity)
+        if (!recent) openDirectLink(activity)
     }
 
     /** onResume-এ ডাকো — বাকি সেকেন্ড রিটার্ন করে; -1 মানে কোনো পেন্ডিং কাজ নেই; 0 মানে এখনই */
