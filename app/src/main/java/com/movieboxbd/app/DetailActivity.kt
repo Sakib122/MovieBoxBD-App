@@ -355,6 +355,18 @@ class DetailActivity : AppCompatActivity() {
     /* ── ⬇ সরাসরি ডাউনলোড — ফোনের ডাউনলোডার (Chrome-এর একই ইঞ্জিন),
            Downloads ফোল্ডারে সেভ হয়, নোটিফিকেশনে প্রগ্রেস দেখায় ── */
 
+        /* 🧹 ডাউনলোড ফাইলের সুন্দর নাম: "মুভির নাম (720p)" —
+       ফাইল সিস্টেমে যে ক্যারেক্টার চলে না (\ / : * ? " < > |) সব বাদ */
+    private fun downloadName(raw: String): String {
+        val title = movie?.title?.takeIf { it.isNotBlank() } ?: ""
+        val label = if (title.isBlank()) raw
+                    else if (raw.isBlank() || title.contains(raw)) title
+                    else "$title ($raw)"
+        val bad = charArrayOf('\\', '/', ':', '*', '?', '"', '<', '>', '|')
+        val clean = label.filter { it !in bad }.trim()
+        return if (clean.isBlank()) "MovieBoxBD" else clean.take(60)
+    }
+    
     /** 📥 ডাউনলোড ফাইলের সুন্দর নাম: "MovieBoxBD.xyz — মুভির নাম [720p WEB-DL]"
      *  ইউজার যেন ডাউনলোড করা ফাইলটা দেখেই বুঝতে পারে কোন মুভি */
     private fun download(streamUrl: String, rawName: String) {
