@@ -237,9 +237,11 @@ class DetailActivity : AppCompatActivity() {
             val link = links[pos]
             h.name.text = link.name
 
-            /* অ্যাড দেখানোর আগে বটম শিট থাকলে বন্ধ */
-            fun beforeAd() {
+            /* 📢 এড খুললে: শিট বন্ধ + মেসেজ। এড-ফ্রি হলে (free=true): শুধু শিট বন্ধ,
+               কোনো এড মেসেজ নয় — কাজ সাথে সাথেই হবে */
+            fun beforeAd(free: Boolean) {
                 if (closeSheet) closeSheet()
+                if (free) return
                 Toast.makeText(
                     this@DetailActivity,
                     "📢 অ্যাডটি ${Config.AD_WATCH_SECONDS} সেকেন্ড দেখো — ফিরে এলে চালিয়ে যাবে!",
@@ -251,30 +253,34 @@ class DetailActivity : AppCompatActivity() {
             h.play.visibility =
                 if (link.streamUrl.isNotBlank()) View.VISIBLE else View.GONE
             h.play.setOnClickListener {
-                beforeAd()
-                /* 💰 আগে Direct Link → গেট → প্লে */
-                Ads.requestAction(
+                /* 💰 আগে Direct Link → গেট → প্লে; ৩ মিনিটের মধ্যে এড দেখা থাকলে সরাসরি প্লে 🆓 */
+                val free = Ads.requestAction(
                     this@DetailActivity, Ads.ACT_PLAY,
                     link.streamUrl, link.name
                 )
+                beforeAd(free)
+                if (free) openPlayer(link.streamUrl, link.name)
             }
 
-            /* ⬇ ডাউনলোড — সরাসরি ডাউনলোড (ফোনের ডাউনলোডার, Downloads ফোল্ডারে সেভ হবে)।
+            /* ⬇ ডাউনলোড — ফোনের ডাউনলোডার (Downloads ফোল্ডারে MovieBoxBD.xyz ক্রেডিটসহ সেভ হবে)।
                টেলিগ্রামে যাবে না — টেলিগ্রামের জন্য ✈ বাটনই আছে। */
             h.dl.setOnClickListener {
                 if (link.streamUrl.isBlank() && link.tgUrl.isBlank()) {
                     Toast.makeText(this@DetailActivity, "ডাউনলোড লিংক নেই", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                beforeAd()
-                if (link.streamUrl.isNotBlank()) {
+                val free = if (link.streamUrl.isNotBlank())
                     Ads.requestAction(
                         this@DetailActivity, Ads.ACT_DOWNLOAD,
                         "", link.name, link.streamUrl
                     )
-                } else {
+                else
                     /* স্ট্রিম লিংক না থাকলেই শুধু টেলিগ্রাম ফলব্যাক */
                     Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
+                beforeAd(free)
+                if (free) {
+                    if (link.streamUrl.isNotBlank()) download(link.streamUrl, link.name)
+                    else openTelegram(link.tgUrl)
                 }
             }
 
@@ -282,15 +288,17 @@ class DetailActivity : AppCompatActivity() {
             h.web.setOnClickListener {
                 val url = link.pageUrl.ifBlank { link.streamUrl }
                 if (url.isBlank()) return@setOnClickListener
-                beforeAd()
-                Ads.requestAction(this@DetailActivity, Ads.ACT_BROWSER, url, link.name)
+                val free = Ads.requestAction(this@DetailActivity, Ads.ACT_BROWSER, url, link.name)
+                beforeAd(free)
+                if (free) openBrowser(url)
             }
 
             /* ✈ টেলিগ্রাম — বটের আসল ফাইল লিংক থাকলে দেখাবে */
             h.tg.visibility = if (link.tgUrl.isNotBlank()) View.VISIBLE else View.GONE
             h.tg.setOnClickListener {
-                beforeAd()
-                Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
+                val free = Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, link.tgUrl, link.name)
+                beforeAd(free)
+                if (free) openTelegram(link.tgUrl)
             }
         }
     }
