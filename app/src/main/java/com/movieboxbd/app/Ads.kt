@@ -17,8 +17,8 @@ import android.webkit.WebViewClient
  *      (সাধারণ মুভিতে NORMAL_DIRECT_LINKS, ১৮+ মুভিতে ADULT_DIRECT_LINKS)
  *   ২. ▶ প্লে / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম — র‍্যান্ডম Direct Link
  *      (সর্বশেষ দেখানোটা আবার আসে না) + অ্যাপে ৫ সেকেন্ডের কাউন্টডাউন → শেষ হলেই কাজ
- *   ৩. ⏱ কুলডাউন: একটা অ্যাডের পর AD_COOLDOWN_SECONDS (১ মিনিট) পর্যন্ত কোনো অ্যাড নয় —
- *      ইউজার যা খুশি করতে পারে; সময় শেষে পরের ক্লিকেই আবার র‍্যান্ডম অ্যাড
+ *   ৩. ⏱ (v3.4) ▶ প্লে: প্রতি ১ মিনিট পর পর গেট — মুভি হোক এপিসোড হোক, চিরতরে বন্ধ নয়;
+ *      ⬇ ডাউনলোড/টেলিগ্রাম/ব্রাউজার: প্রতিবারই অ্যাড। পোস্টার-ক্লিকের টাইমার আলাদা।
  *   ৪. ব্যানার ৪টাই রিয়েল Adsterra কোড, রিয়েল ইমপ্রেশন — ফেক/খালি ব্যানার নেই
  */
 object Ads {
@@ -40,15 +40,24 @@ object Ads {
     /* 🔞 এখন যে মুভির পেজ খোলা সেটা ১৮+ কি না — DetailActivity সেট করে */
     var adultNow: Boolean = false
 
-    /* ⏱ অ্যাড কুলডাউন (মালিকের নির্দেশ — আগের সিস্টেমে ছিল ৩ মিনিট, এখন ১ মিনিট):
-       একটা অ্যাড দেখার পর Config.AD_COOLDOWN_SECONDS পর্যন্ত আর কোনো ডাইরেক্ট-লিংক
-       অ্যাড আসবে না। ইউজার এর ভেতরে যা খুশি করতে পারে — প্লে, এপিসোড চেঞ্জ,
-       ডাউনলোড — সব সরাসরি হবে। সময় শেষ হলে পরের ক্লিকেই র‍্যান্ডম অ্যাড। */
-    private const val K_LAST = "last_ad_ts"
+    /* ⏱ অ্যাড কুলডাউন (মালিকের নির্দেশ v3.4):
+       ▶ প্লে (মুভি/এপিসোড — যে কোনোটা): প্রতি ১ মিনিট পর পর ৫-সেকেন্ডের অ্যাড-গেট —
+         চিরতরে বন্ধ হয় না। ১ মিনিটের ভেতরে আরেকবার প্লে করলে অ্যাড ছাড়াই চলবে।
+         এই টাইমার পোস্টার-ক্লিকের সাথে জড়াতে পারে না — নাহলে পোস্টার ক্লিক করে
+         সাথে সাথে প্লে চাপলে গেট চুপি চুপি স্কিপ হয়ে যায় (আগের বাগ)।
+       ⬇ ডাউনলোড / ✈ টেলিগ্রাম / 🌐 ব্রাউজার: প্রতিবারই অ্যাড — কোনো কুলডাউন নয়। */
+    private const val K_LAST = "last_ad_ts"          /* পোস্টার-ক্লিকের টাইমার */
+    private const val K_LAST_GATE = "last_play_gate_ts" /* ▶ প্লে-গেটের নিজস্ব টাইমার */
 
     /** এখন অ্যাড-ফ্রি সময় চলছে কি না (কুলডাউনের ভেতরে = true → অ্যাড ছাড়াই কাজ) */
     fun adFreeNow(ctx: Context): Boolean {
         val last = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getLong(K_LAST, 0L)
+        return System.currentTimeMillis() - last < Config.AD_COOLDOWN_SECONDS * 1000L
+    }
+
+    /** ▶ প্লে-গেট এখন ফ্রি কি না — শেষ প্লে-অ্যাড দেখানোর ১ মিনিটের ভেতরে হলে ফ্রি */
+    private fun playGateFree(ctx: Context): Boolean {
+        val last = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getLong(K_LAST_GATE, 0L)
         return System.currentTimeMillis() - last < Config.AD_COOLDOWN_SECONDS * 1000L
     }
 
@@ -80,12 +89,19 @@ object Ads {
     }
 
     /** ▶ প্লে / ⬇ ডাউনলোড ইত্যাদির আগে অ্যাড-গেট:
-     *  ⏱ কুলডাউনের ভেতরে থাকলে অ্যাড ছাড়াই free=true — কাজ সরাসরি হবে।
-     *  নাহলে র‍্যান্ডম Direct Link খোলে + অ্যাপে AD_WATCH_SECONDS সেকেন্ডের কাউন্টডাউন,
+     *  ▶ প্লে: শেষ প্লে-অ্যাডের ১ মিনিটের ভেতরে হলে free=true (অ্যাড ছাড়াই চলবে);
+     *    ১ মিনিট পার হলে আবার ৫-সেকেন্ডের গেট — প্রতিবার, চিরতরে বন্ধ নয়।
+     *  ⬇ ডাউনলোড / ✈ টেলিগ্রাম / 🌐 ব্রাউজার: প্রতিবারই অ্যাড-গেট।
+     *  গেট হলে র‍্যান্ডম Direct Link খোলে + অ্যাপে AD_WATCH_SECONDS সেকেন্ডের কাউন্টডাউন,
      *  ফিরে এলে কাউন্টডাউন শেষ করে কাজটা হয়। */
     fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = ""): Boolean {
-        if (adFreeNow(activity)) return true   /* ⏱ ১ মিনিটের ভেতরে — আর কোনো অ্যাড নয় */
-        markAdShown(activity)
+        if (type == ACT_PLAY) {
+            if (playGateFree(activity)) return true   /* ⏱ ১ মিনিটের ভেতরে আবার প্লে — অ্যাড নেই */
+            /* ⏱ এই মিনিটের প্লে-অ্যাড গোনা হলো — পরের গেট এর ১ মিনিট পরে */
+            activity.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+                .putLong(K_LAST_GATE, System.currentTimeMillis()).apply()
+        }
+        /* ⬇ ডাউনলোড/টেলিগ্রাম/ব্রাউজার: কুলডাউন নেই — প্রতিবার অ্যাড */
         activity.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .putLong(K_TS, System.currentTimeMillis())
             .putBoolean(K_PEND, true)

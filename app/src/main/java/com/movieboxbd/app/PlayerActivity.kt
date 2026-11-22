@@ -91,7 +91,6 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnMSpeed: TextView
     private lateinit var btnMAudio: TextView
     private lateinit var btnMScale: TextView
-    private lateinit var btnMQ: TextView
     private lateinit var lockLayer: View
     private var started = false
     private var locked = false
@@ -122,9 +121,8 @@ class PlayerActivity : AppCompatActivity() {
     private var scaleIndex = 0
 
     /* 🎬 ভিডিও কোয়ালিটি-ক্যাপ (সার্ভারের সর্বোচ্চ রেজোলিউশন যেটা দেয়) */
-    private val QUALITY_HEIGHTS = intArrayOf(Int.MAX_VALUE, 2160, 1080, 720, 480, 360)
-    private val QUALITY_LABELS = arrayOf("Auto", "2160P", "1080P", "720P", "480P", "360P")
-    private var qualityIndex = 0
+    /* 🎬 ভিডিও কোয়ালিটি-ক্যাপ (ফেক 720P/480P বাদ — v3.4): কোয়ালিটি বাটন/ডায়ালগ নেই,
+       স্ট্রিম যা, সেটাই সরাসরি চলে */
 
     /** ম্যানুয়ালি বাছা অডিও ট্র্যাক (-1 = অটো) */
     private var audioPick = -1
@@ -186,7 +184,6 @@ class PlayerActivity : AppCompatActivity() {
         btnMSpeed = findViewById(R.id.btnMSpeed)
         btnMAudio = findViewById(R.id.btnMAudio)
         btnMScale = findViewById(R.id.btnMScale)
-        btnMQ = findViewById(R.id.btnMQ)
         lockLayer = findViewById(R.id.lockLayer)
         findViewById<TextView>(R.id.pTitle).text = creditTitle()
         findViewById<ImageButton>(R.id.btnPBack).setOnClickListener { finish() }
@@ -195,11 +192,7 @@ class PlayerActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnHelp).setOnClickListener { openTelegramChannel() }
         findViewById<TextView>(R.id.btnSetting).setOnClickListener { showSettings() }
 
-        /* ⏪10 / ⏩10 — রেফারেন্স-প্লেয়ারের মতো */
-        findViewById<View>(R.id.btnRew10).setOnClickListener { player?.seekBack() }
-        findViewById<View>(R.id.btnFwd10).setOnClickListener { player?.seekForward() }
-
-        findViewById<ImageButton>(R.id.btnPRotate).setOnClickListener { rotateNow() }
+        /* (v3.4) ⏪10 ▶ ⏩10 আলাদা বাটন আর রোটেট বাদ — ডাবল-ট্যাপ জেসচারেই সব হয় */
 
         /* ═══ ইনসেট: কন্ট্রোল বার নেভবার/নোটচের নিচে চাপা পড়বে না +
                বার কোথাও উঠে এলে আবার লুকিয়ে দেওয়া হয় (আসল ইমারসিভ) ═══ */
@@ -235,7 +228,6 @@ class PlayerActivity : AppCompatActivity() {
         btnMSpeed.setOnClickListener { showSpeedDialog() }
         btnMAudio.setOnClickListener { showAudioDialog() }
         btnMScale.setOnClickListener { cycleScale() }
-        btnMQ.setOnClickListener { showQualityDialog() }
 
         /* লক থাকলে ব্যাক চাপলে বের হবে না — MX-এর মতো */
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -280,14 +272,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    /* ── 🔄 রোটেট ── */
-    private fun rotateNow() {
-        requestedOrientation =
-            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-            else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-    }
-
     /* ── ⛶ স্ক্রিন-মোড সাইকেল ── */
     private fun cycleScale() {
         scaleIndex = (scaleIndex + 1) % SCALE_MODES.size
@@ -328,40 +312,21 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
-    /* ── 🎬 ভিডিও কোয়ালিটি-ক্যাপ ─────────────────────────────── */
-
-    private fun showQualityDialog() {
-        val ts = trackSel ?: return
-        AlertDialog.Builder(this)
-            .setTitle("ভিডিও কোয়ালিটি")
-            .setItems(QUALITY_LABELS) { _, w ->
-                qualityIndex = w
-                ts.parameters = ts.buildUponParameters()
-                    .setMaxVideoSize(Int.MAX_VALUE, QUALITY_HEIGHTS[w])
-                    .build()
-                btnMQ.text = QUALITY_LABELS[w]
-                Toast.makeText(this, "কোয়ালিটি: ${QUALITY_LABELS[w]}", Toast.LENGTH_SHORT).show()
-            }
-            .show()
-    }
-
     /* ── ⚙ সেটিংস-ডায়ালগ (রেফারেন্সের Setting) ─────────────── */
 
     private fun showSettings() {
         val opts = arrayOf(
-            "প্লে স্পিড", "ভিডিও কোয়ালিটি", "অডিও (ভাষা)",
-            "সাবটাইটেল অন/অফ", "স্ক্রিন মোড", "রোটেট করো"
+            "প্লে স্পিড", "অডিও (ভাষা)",
+            "সাবটাইটেল অন/অফ", "স্ক্রিন মোড"
         )
         AlertDialog.Builder(this)
             .setTitle("সেটিংস")
             .setItems(opts) { _, w ->
                 when (w) {
                     0 -> showSpeedDialog()
-                    1 -> showQualityDialog()
-                    2 -> showAudioDialog()
-                    3 -> toggleSubs()
-                    4 -> cycleScale()
-                    5 -> rotateNow()
+                    1 -> showAudioDialog()
+                    2 -> toggleSubs()
+                    3 -> cycleScale()
                 }
             }
             .show()
@@ -655,7 +620,6 @@ class PlayerActivity : AppCompatActivity() {
         var pb = tsel.buildUponParameters()
         if (audioDisabled) pb = pb.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
         if (subsDisabled) pb = pb.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-        if (qualityIndex > 0) pb = pb.setMaxVideoSize(Int.MAX_VALUE, QUALITY_HEIGHTS[qualityIndex])
         tsel.parameters = pb.build()
 
         val dsFactory = DefaultHttpDataSource.Factory()
@@ -808,6 +772,12 @@ class PlayerActivity : AppCompatActivity() {
         var brightBase = 0f
         var pointerDown = false
         var holdEngaged = false
+        /* ⚡ ডাবল-ট্যাপ: বাঁয়ে = −১০ সেকেন্ড, ডানে = +১০ সেকেন্ড, মাঝে = প্লে/পজ
+           (v3.4 — আলাদা পজ/±10s বাটন বাদ, রেফারেন্স-অ্যাপের মতো জেসচারেই সব) */
+        var lastTapAt = 0L
+        val pendingTap = Runnable {
+            if (controllerVisible) pv.hideController() else pv.showController()
+        }
 
         val holdCheck = Runnable {
             /* চেপে ধরে রাখলে (টান ছাড়া) 2x ফরওয়ার্ড প্লে */
@@ -897,11 +867,40 @@ class PlayerActivity : AppCompatActivity() {
                            ডিটেইল-পেজের মিনি-প্লেয়ার এখানকার পজিশন থেকেই চলবে */
                         val dy = ev.y - downY
                         if (dy > dp(110) && abs(dy) > abs(ev.x - downX)) {
+                            ui.removeCallbacks(pendingTap)
                             finish()
                             return@setOnTouchListener true
                         }
-                        /* সাধারণ ট্যাপ → কন্ট্রোলার আসবে/যাবে */
-                        if (controllerVisible) pv.hideController() else pv.showController()
+                        /* ⚡ ট্যাপ/ডাবল-ট্যাপ */
+                        val now = System.currentTimeMillis()
+                        val w = resources.displayMetrics.widthPixels
+                        if (now - lastTapAt < 320) {
+                            /* ডাবল-ট্যাপ — সিঙ্গেল-ট্যাপের বিলম্বিত কাজ বাতিল করে জেসচার চালু */
+                            ui.removeCallbacks(pendingTap)
+                            lastTapAt = 0
+                            val p = player
+                            if (p != null) {
+                                when {
+                                    ev.x < w / 3f -> {
+                                        p.seekTo((p.currentPosition - 10_000).coerceAtLeast(0))
+                                        showHint("পিছনে ১০ সেকেন্ড")
+                                    }
+                                    ev.x > w * 2f / 3f -> {
+                                        p.seekTo(p.currentPosition + 10_000)
+                                        showHint("সামনে ১০ সেকেন্ড")
+                                    }
+                                    else -> {
+                                        if (p.isPlaying) p.pause() else p.play()
+                                        showHint(if (p.isPlaying) "চলছে" else "থামলো")
+                                    }
+                                }
+                            }
+                        } else {
+                            /* সিঙ্গেল-ট্যাপ → কন্ট্রোলার (ডাবল-ট্যাপ আসলে বিলম্বিতভাবে) */
+                            lastTapAt = now
+                            ui.removeCallbacks(pendingTap)
+                            ui.postDelayed(pendingTap, 320)
+                        }
                     } else {
                         endHold()
                         hideHintSoon()

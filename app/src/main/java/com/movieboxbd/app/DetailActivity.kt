@@ -334,28 +334,113 @@ class DetailActivity : AppCompatActivity() {
         miniCtrl.visibility = if (miniCtrl.isVisible) View.GONE else View.VISIBLE
     }
 
-    /* ── 📱 ইউটিউব-স্টাইল টাচ: ট্যাপ = কন্ট্রোল; ⬇ টানা = ভাসমান পপআপ; ⬆ টানা = ফুলস্ক্রিন ── */
+    /* ── 📱 মিনি-প্লেয়ার টাচ (ফুলস্ক্রিনের জেসচার হুবহু — v3.4):
+       ট্যাপ = কন্ট্রোল; বাঁয়ে ডাবল-ট্যাপ = −১০ সে, ডানে = +১০ সে, মাঝে = প্লে/পজ;
+       বাঁ পাশে উপর-নিচ = ব্রাইটনেস; ডান পাশে উপর-নিচ = ভলিউম;
+       মাঝ বরাবর নিচে টানা = ভাসমান পপআপ, উপরে টানা = ফুলস্ক্রিন ── */
     private fun setupMiniPlayerTouch() {
-        var x0 = 0f
-        var y0 = 0f
-        var moved = false
+        val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val maxVol = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val slop = 24f
+        var downX = 0f
+        var downY = 0f
+        var mode = 0            /* 0=none 1=volume 2=brightness 9=horizontal-নাহ */
+        var volBase = 0
+        var brightBase = 0f
+        var lastTapAt = 0L
+
+        val hidePill = Runnable { seekPreview.visibility = View.GONE }
+        fun pill(text: String) {
+            ui.removeCallbacks(hidePill)
+            seekPreview.text = text
+            seekPreview.visibility = View.VISIBLE
+            ui.postDelayed(hidePill, 800)
+        }
+        /* সিঙ্গেল-ট্যাপ একটু দেরিতে (ডাবল-ট্যাপ যেন আগে ধরা পড়ে) */
+        val pendingTap = Runnable { if (player != null) toggleMiniCtrl() }
+
         pv.setOnTouchListener { _, ev ->
             when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { x0 = ev.x; y0 = ev.y; moved = false; true }
+                MotionEvent.ACTION_DOWN -> {
+                    downX = ev.x; downY = ev.y; mode = 0
+                    volBase = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    brightBase = window.attributes.screenBrightness.takeIf { it > 0 } ?: 0.5f
+                    true
+                }
                 MotionEvent.ACTION_MOVE -> {
-                    if (abs(ev.x - x0) > dp(20) || abs(ev.y - y0) > dp(20)) moved = true
+                    val dx = ev.x - downX
+                    val dy = ev.y - downY
+                    if (mode == 0 && (abs(dx) > slop || abs(dy) > slop)) {
+                        ui.removeCallbacks(pendingTap)   /* টানা শুরু — ট্যাপ বাতিল */
+                        mode = if (abs(dx) > slop && abs(dx) > abs(dy)) 9
+                        else if (downX < pv.width / 2f) 2 else 1
+                    }
+                    when (mode) {
+                        /* ডান পাশে উপর-নিচ → 🔊 ভলিউম */
+                        1 -> {
+                            val nv = (volBase + (-dy / 30f)).toInt().coerceIn(0, maxVol)
+                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, nv, 0)
+                            pill("🔊  ${nv * 100 / maxVol}%")
+                        }
+                        /* বাঁ পাশে উপর-নিচ → ☀ ব্রাইটনেস */
+                        2 -> {
+                            val f = (brightBase - dy / pv.height.coerceAtLeast(1) * 1.2f).coerceIn(0.01f, 1f)
+                            val attr = window.attributes
+                            attr.screenBrightness = f
+                            window.attributes = attr
+                            pill("☀  ${(f * 100).toInt()}%")
+                        }
+                    }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    val dx = ev.x - x0
-                    val dy = ev.y - y0
-                    when {
-                        /* ⬇ নিচে টানলে ভাসমান পপআপে যায় (টেনে সরানো যায়, বন্ধ করা যায়) */
-                        dy > dp(90) && abs(dy) > abs(dx) -> floatToPopup()
-                        /* ⬆ উপরে টানলে ফুলস্ক্রিন প্লেয়ারে যায় */
-                        dy < -dp(90) && abs(dy) > abs(dx) -> openFullscreen()
-                        /* সাধারণ ট্যাপ → কন্ট্রোল টগল */
-                        !moved -> if (player != null) toggleMiniCtrl()
+                    if (mode == 0) {
+                        val dx = ev.x - downX
+                        val dy = ev.y - downY
+                        when {
+                            /* ⬇ নিচে টানলে ভাসমান পপআপে যায় (টেনে সরানো যায়, বন্ধ করা যায়) */
+                            dy > dp(90) && abs(dy) > abs(dx) -> {
+                                ui.removeCallbacks(pendingTap)
+                                floatToPopup()
+                            }
+                            /* ⬆ উপরে টানলে ফুলস্ক্রিন প্লেয়ারে যায় */
+                            dy < -dp(90) && abs(dy) > abs(dx) -> {
+                                ui.removeCallbacks(pendingTap)
+                                openFullscreen()
+                            }
+                            else -> {
+                                /* ⚡ ট্যাপ / ডাবল-ট্যাপ */
+                                val now = System.currentTimeMillis()
+                                if (now - lastTapAt < 320) {
+                                    ui.removeCallbacks(pendingTap)
+                                    lastTapAt = 0
+                                    val p = player
+                                    val w = pv.width
+                                    if (p != null && w > 0) {
+                                        when {
+                                            ev.x < w / 3f -> {
+                                                p.seekTo((p.currentPosition - 10_000).coerceAtLeast(0))
+                                                pill("⏪ ১০ সেকেন্ড")
+                                            }
+                                            ev.x > w * 2f / 3f -> {
+                                                p.seekTo(p.currentPosition + 10_000)
+                                                pill("১০ সেকেন্ড ⏩")
+                                            }
+                                            else -> {
+                                                if (p.isPlaying) p.pause() else p.play()
+                                                pill(if (p.isPlaying) "▶  চলছে" else "⏸  থামলো")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    lastTapAt = now
+                                    ui.removeCallbacks(pendingTap)
+                                    ui.postDelayed(pendingTap, 320)
+                                }
+                            }
+                        }
+                    } else {
+                        seekPreview.visibility = View.GONE
                     }
                     true
                 }

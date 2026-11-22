@@ -15,6 +15,7 @@ import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -25,6 +26,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlin.math.abs
 
@@ -346,7 +348,7 @@ object FloatPlayer {
         val b = ImageButton(act)
         b.setBackgroundResource(R.drawable.player_btn_circle)
         b.setImageResource(icon)
-        b.scaleType = ImageButton.ScaleType.FIT_CENTER
+        b.scaleType = ImageView.ScaleType.FIT_CENTER
         val s = (sizeDp * d).toInt()
         b.setPadding(7 * d.toInt(), 7 * d.toInt(), 7 * d.toInt(), 7 * d.toInt())
         b.layoutParams = LinearLayout.LayoutParams(s, s).apply {

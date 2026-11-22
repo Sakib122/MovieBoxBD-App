@@ -67,88 +67,15 @@
             android:textSize="11sp" />
     </LinearLayout>
 
-    <!-- মাঝের ফাঁকা জায়গা (ভিডিও দেখা যাবে) -->
+    <!-- মাঝের ফাঁকা জায়গা (ভিডিও দেখা যাবে)
+         (v3.4) ⏪10 ▶ ⏩10 আলাদা বাটন নেই — ডাবল-ট্যাপ জেসচার:
+         বাঁয়ে ডাবল-ট্যাপ = −১০ সেকেন্ড, ডানে = +১০ সেকেন্ড, মাঝে = প্লে/পজ -->
     <View
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <!-- ⏪10 ▶ ⏩10 — গোল অর্ধ-স্বচ্ছ বাটন, চাপলে নিজেই দেখায় কাজ করছে -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:paddingBottom="6dp">
-
-        <FrameLayout
-            android:id="@+id/btnRew10"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:background="@drawable/player_btn_circle"
-            android:clickable="true"
-            android:focusable="true">
-
-            <ImageView
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_gravity="center"
-                android:contentDescription="rew10"
-                android:src="@drawable/ic_rew10" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginStart="2dp"
-                android:text="10"
-                android:textColor="#FFFFFF"
-                android:textSize="9sp"
-                android:textStyle="bold" />
-        </FrameLayout>
-
-        <!-- ⏯ Media3-এর এক-বাটন প্লে/পজ — আইকন ও ক্লিক Media3 নিজেই সামলায় -->
-        <ImageButton
-            android:id="@id/exo_play_pause"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginStart="14dp"
-            android:layout_marginEnd="14dp"
-            android:background="@drawable/player_btn_circle"
-            android:contentDescription="play"
-            android:padding="18dp"
-            android:scaleType="fitCenter"
-            android:src="@android:drawable/ic_media_play"
-            app:tint="#FFFFFF" />
-
-        <FrameLayout
-            android:id="@+id/btnFwd10"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:background="@drawable/player_btn_circle"
-            android:clickable="true"
-            android:focusable="true">
-
-            <ImageView
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_gravity="center"
-                android:contentDescription="fwd10"
-                android:src="@drawable/ic_ffwd10" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginStart="2dp"
-                android:text="10"
-                android:textColor="#FFFFFF"
-                android:textSize="9sp"
-                android:textStyle="bold" />
-        </FrameLayout>
-    </LinearLayout>
-
-    <!-- নিচের কন্ট্রোল বার: সুন্দর টাইম-বার + Fit / Language / Speed / Quality চিপ-পিল -->
+    <!-- নিচের কন্ট্রোল বার: সুন্দর টাইম-বার + Fit / Language / Speed চিপ-পিল -->
     <LinearLayout
         android:id="@+id/ctrlBottom"
         android:layout_width="match_parent"
@@ -202,17 +129,6 @@
             android:paddingTop="2dp"
             android:paddingBottom="6dp">
 
-            <ImageButton
-                android:id="@+id/btnPRotate"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:background="@drawable/player_btn_circle"
-                android:contentDescription="rotate"
-                android:padding="10dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_rotate"
-                app:tint="#FFFFFF" />
-
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -254,19 +170,6 @@
                 android:drawableStart="@drawable/ic_speed"
                 android:drawablePadding="5dp"
                 android:text="1x"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp" />
-
-            <!-- 🎬 ভিডিও কোয়ালিটি (Auto/1080P/720P/480P/360P) -->
-            <TextView
-                android:id="@+id/btnMQ"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:background="@drawable/player_chip"
-                android:drawableStart="@drawable/ic_video"
-                android:drawablePadding="5dp"
-                android:text="Auto"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
         </LinearLayout>
