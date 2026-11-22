@@ -337,7 +337,7 @@ class PlayerActivity : AppCompatActivity() {
             .setItems(QUALITY_LABELS) { _, w ->
                 qualityIndex = w
                 ts.parameters = ts.buildUponParameters()
-                    .setMaxVideoHeight(QUALITY_HEIGHTS[w])
+                    .setMaxVideoSize(Int.MAX_VALUE, QUALITY_HEIGHTS[w])
                     .build()
                 btnMQ.text = QUALITY_LABELS[w]
                 Toast.makeText(this, "কোয়ালিটি: ${QUALITY_LABELS[w]}", Toast.LENGTH_SHORT).show()
@@ -655,7 +655,7 @@ class PlayerActivity : AppCompatActivity() {
         var pb = tsel.buildUponParameters()
         if (audioDisabled) pb = pb.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
         if (subsDisabled) pb = pb.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-        if (qualityIndex > 0) pb = pb.setMaxVideoHeight(QUALITY_HEIGHTS[qualityIndex])
+        if (qualityIndex > 0) pb = pb.setMaxVideoSize(Int.MAX_VALUE, QUALITY_HEIGHTS[qualityIndex])
         tsel.parameters = pb.build()
 
         val dsFactory = DefaultHttpDataSource.Factory()
