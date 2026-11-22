@@ -81,7 +81,21 @@
                 android:src="@drawable/ic_back"
                 app:tint="#FFFFFF" />
 
-            <!-- 🎛 মিনি-কন্ট্রোল: প্লে/পজ + প্রগ্রেস + সময় + মিনিমাইজ + ফুলস্ক্রিন -->
+            <!-- ⏱ সিক-বার টানার সময় ভিডিওর মাঝে সময়-প্রিভিউ (রেফারেন্স-অ্যাপের মতো) -->
+            <TextView
+                android:id="@+id/seekPreview"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="#CC000000"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- 🎛 মিনি-কন্ট্রোল: প্লে/পজ + টানা-যায় সিক-বার + সময় + ভলিউম + ⧉ ফ্লোট + ⛶ ফুলস্ক্রিন -->
             <LinearLayout
                 android:id="@+id/miniCtrl"
                 android:layout_width="match_parent"
@@ -92,8 +106,7 @@
                 android:orientation="horizontal"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:paddingBottom="6dp"
-                android:visibility="gone">
+                android:paddingBottom="6dp">
 
                 <ImageButton
                     android:id="@+id/btnMiniPlay"
@@ -104,33 +117,59 @@
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_play" />
 
-                <ProgressBar
+                <androidx.media3.ui.DefaultTimeBar
                     android:id="@+id/miniBar"
-                    style="?android:attr/progressBarStyleHorizontal"
                     android:layout_width="0dp"
-                    android:layout_height="4dp"
-                    android:layout_marginStart="4dp"
+                    android:layout_height="26dp"
+                    android:layout_marginStart="2dp"
                     android:layout_weight="1"
-                    android:progressTint="#FFFFFF"
-                    android:progressBackgroundTint="#55FFFFFF" />
+                    app:bar_height="3dp"
+                    app:buffered_color="#55FFFFFF"
+                    app:played_color="#FFFFFF"
+                    app:scrubber_color="#FFFFFF"
+                    app:touch_target_height="26dp"
+                    app:unplayed_color="#66FFFFFF" />
 
                 <TextView
                     android:id="@+id/miniTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingStart="6dp"
+                    android:paddingStart="4dp"
                     android:textColor="#FFFFFF"
                     android:textSize="11sp" />
 
                 <ImageButton
-                    android:id="@+id/btnMiniMin"
+                    android:id="@+id/btnVolDown"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/player_btn_circle"
+                    android:contentDescription="volume down"
+                    android:padding="7dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_vol_minus" />
+
+                <ImageButton
+                    android:id="@+id/btnVolUp"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/player_btn_circle"
+                    android:contentDescription="volume up"
+                    android:padding="7dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_vol_plus" />
+
+                <ImageButton
+                    android:id="@+id/btnMiniFloat"
                     android:layout_width="38dp"
                     android:layout_height="40dp"
+                    android:layout_marginStart="4dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="minimize"
+                    android:contentDescription="floating popup"
                     android:padding="8dp"
                     android:scaleType="fitCenter"
-                    android:src="@drawable/ic_minimize" />
+                    android:src="@drawable/ic_float" />
 
                 <ImageButton
                     android:id="@+id/btnMiniMax"
@@ -329,20 +368,6 @@
                         app:iconGravity="textStart" />
                 </LinearLayout>
 
-                <!-- 💰 300×250 অ্যাড (রেফারেন্সের মতো পেজের মাঝে) -->
-                <FrameLayout
-                    android:id="@+id/adBoxRect"
-                    android:layout_width="match_parent"
-                    android:layout_height="250dp"
-                    android:layout_marginTop="14dp"
-                    android:background="@color/surface">
-
-                    <WebView
-                        android:id="@+id/adRect"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent" />
-                </FrameLayout>
-
                 <!-- ══ 📚 Episodes / Quality — ড্রপ-চিপ + গ্রিড প্যানেল ══ -->
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -461,6 +486,20 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:nestedScrollingEnabled="false" />
+
+                <!-- 💰 300×250 অ্যাড — For You-র নিচে (প্লে করার পরই ইউজারের চোখে For You পড়ে) -->
+                <FrameLayout
+                    android:id="@+id/adBoxRect"
+                    android:layout_width="match_parent"
+                    android:layout_height="250dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@color/surface">
+
+                    <WebView
+                        android:id="@+id/adRect"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+                </FrameLayout>
             </LinearLayout>
         </ScrollView>
 

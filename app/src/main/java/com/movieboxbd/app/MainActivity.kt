@@ -536,6 +536,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        FloatPlayer.reattach(this)         /* 🪟 ভাসমান পপআপ হোমে ফিরেও ভাসতে থাকবে */
         Stats.beat(this)
         beatUi.removeCallbacks(beatTick)
         beatUi.postDelayed(beatTick, 60_000L)
@@ -546,5 +547,10 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         beatUi.removeCallbacks(beatTick)
         homeAdapter?.pauseHero()           /* 🎬 অ্যাপ না দেখলে স্লাইডার থামবে (ব্যাটারি বাঁচবে) */
+    }
+
+    override fun onDestroy() {
+        FloatPlayer.onHostDestroyed(this)  /* 🪟 অ্যাপের শেষ পেজ বন্ধ হলে পপআপও বন্ধ */
+        super.onDestroy()
     }
 }

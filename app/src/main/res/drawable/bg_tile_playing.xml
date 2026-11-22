@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ▶ এখন যে এপিসোড প্লে হচ্ছে — সবুজ গ্রেডিয়েন্ট টাইল (রেফারেন্স-অ্যাপের "01" স্টাইল) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="#177A4B"
+        android:startColor="#0B3B26" />
+    <stroke
+        android:width="1.5dp"
+        android:color="#22C55E" />
+    <corners android:radius="12dp" />
+</shape>

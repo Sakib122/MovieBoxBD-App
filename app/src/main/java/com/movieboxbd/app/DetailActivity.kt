@@ -3,6 +3,7 @@ package com.movieboxbd.app
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -33,6 +34,8 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.DefaultTimeBar
+import androidx.media3.ui.TimeBar
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -82,21 +85,19 @@ class DetailActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var playingUrl = ""
     private var playingName = ""
-    private var minimized = false
     private var miniRequested = false   /* গেট শেষ হলে মিনি-প্লেয়ারে চালাতে হবে */
 
     private lateinit var playerBox: FrameLayout
     private lateinit var pv: androidx.media3.ui.PlayerView
     private lateinit var posterCover: FrameLayout
     private lateinit var btnMiniPlay: ImageButton
-    private lateinit var miniBar: ProgressBar
+    private lateinit var miniBar: DefaultTimeBar
     private lateinit var miniTime: TextView
     private lateinit var miniCtrl: View
+    private lateinit var seekPreview: TextView
 
-    /* ✅ দেখা হয়ে যাওয়া এপিসোড — সবুজ মার্ক (মনে থাকে, অ্যাপ বন্ধ করলেও) */
-    private val watchedPrefs by lazy {
-        getSharedPreferences("mbx_watched", Context.MODE_PRIVATE)
-    }
+    /* সিক-বার টানার সময় tick যেন প্রিভিউর সাথে না লড়ে */
+    private var scrubbing = false
 
     /* 🎧 ডুয়াল অডিও — ভাষার কোড → ইংরেজি নাম (সিজনের পাশের Audio চিপ) */
     private var miniAudioPick = -1
@@ -145,6 +146,7 @@ class DetailActivity : AppCompatActivity() {
         miniBar = findViewById(R.id.miniBar)
         miniTime = findViewById(R.id.miniTime)
         miniCtrl = findViewById(R.id.miniCtrl)
+        seekPreview = findViewById(R.id.seekPreview)
 
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<TextView>(R.id.dTitle).text = m.title
@@ -206,12 +208,37 @@ class DetailActivity : AppCompatActivity() {
         /* ▶ বড় প্লে-বাটন + পোস্টারের যেকোনো জায়গায় ট্যাপ — প্রথম লিংক (অ্যাড-গেটের পরে) */
         findViewById<View>(R.id.btnMiniPlayBig).setOnClickListener { playFirst() }
         posterCover.setOnClickListener { playFirst() }
-        /* 🎛 মিনি-কন্ট্রোল */
-        btnMiniPlay.setOnClickListener { togglePlay() }
-        findViewById<View>(R.id.btnMiniMin).setOnClickListener { toggleMiniSize() }
+        /* ▶ নিচের বারের প্লে-বাটন: মুভি চালু না থাকলে প্রথম লিংক, থাকলে প্লে/পজ */
+        btnMiniPlay.setOnClickListener {
+            if (player == null) playFirst() else togglePlay()
+        }
+        /* 🔊 ভলিউম আপ/ডাউন — সরাসরি ফোনের মিডিয়া-ভলিউম */
+        findViewById<View>(R.id.btnVolDown).setOnClickListener { stepVol(-1) }
+        findViewById<View>(R.id.btnVolUp).setOnClickListener { stepVol(+1) }
+        /* 🪟 ⧉ ফ্লোট — ভিডিও ভাসমান পপআপ হয়ে যাবে (টানা যায়, বড় করা যায়, বন্ধ করা যায়) */
+        findViewById<View>(R.id.btnMiniFloat).setOnClickListener { floatToPopup() }
+        /* ⛶ ফুলস্ক্রিন */
         findViewById<View>(R.id.btnMiniMax).setOnClickListener { openFullscreen() }
-        /* 📱 ভিডিওর উপর ট্যাপ → কন্ট্রোল দেখাও/লুকাও; টানলে ছোট-বড় (ইউটিউব-স্টাইল) */
+        /* 📱 ভিডিওর উপর ট্যাপ → কন্ট্রোল দেখাও/লুকাও; নিচে টানলে পপআপ, উপরে টানলে ফুলস্ক্রিন */
         setupMiniPlayerTouch()
+        /* ⏱ সিক-বার টানলে ভিডিওর উপরে সময়-প্রিভিউ, ছাড় দিলে সেখানেই সিক */
+        miniBar.addListener(object : TimeBar.OnScrubListener {
+            override fun onScrubStart(bar: TimeBar, position: Long) {
+                scrubbing = true
+                seekPreview.visibility = View.VISIBLE
+                seekPreview.text = previewText(position)
+            }
+
+            override fun onScrubMove(bar: TimeBar, position: Long) {
+                seekPreview.text = previewText(position)
+            }
+
+            override fun onScrubStop(bar: TimeBar, position: Long, canceled: Boolean) {
+                scrubbing = false
+                seekPreview.visibility = View.GONE
+                if (!canceled) player?.seekTo(position)
+            }
+        })
 
         /* 🎧 ডুয়াল অডিও — সিজনের পাশের Audio চিপ */
         findViewById<View>(R.id.btnAudioDrop).setOnClickListener { showMiniAudioDialog() }
@@ -248,14 +275,18 @@ class DetailActivity : AppCompatActivity() {
         if (playingUrl == url && player != null) {
             player?.play(); return
         }
+        FloatPlayer.stopIfActive()   /* 🪟 পপআপ ভাসছিল থাকলে আগে বন্ধ — দুটো ভিডিও একসাথে শব্দ করবে না */
         releaseMini()
         playingUrl = url
         playingName = name
+        /* ✅ এখন যেটা প্লে হচ্ছে শুধু সেটাই সবুজ-মার্ক পাবে */
+        refreshPlayingMark()
         posterCover.visibility = View.GONE
         pv.visibility = View.VISIBLE
-        /* 🎛 কন্ট্রোল বার এখনই দেখা যাবে — প্লে/পজ, মিনিমাইজ, ফুলস্ক্রিন সব হাতের নাগালে */
+        /* 🎛 কন্ট্রোল বার এখনই দেখা যাবে — প্লে/পজ, সিক, ভলিউম, ফ্লোট, ফুলস্ক্রিন সব হাতের নাগালে */
         miniCtrl.visibility = View.VISIBLE
-        val p = ExoPlayer.Builder(this, DefaultRenderersFactory(this).setEnableDecoderFallback(true))
+        /* applicationContext — পপআপে হাতবদল হলেও প্লেয়ার অ্যাক্টিভিটির সাথে বাঁধা থাকবে না */
+        val p = ExoPlayer.Builder(applicationContext, DefaultRenderersFactory(applicationContext).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
                     DefaultHttpDataSource.Factory()
@@ -274,7 +305,6 @@ class DetailActivity : AppCompatActivity() {
                 if (state == Player.STATE_READY) {
                     if (startPos > 0) p.seekTo(startPos)
                     p.play()
-                    markWatched(name)   /* ✅ চালু হলেই "দেখা হয়েছে" — সবুজ মার্ক */
                 }
                 if (state == Player.STATE_ENDED) autoNext()
             }
@@ -304,7 +334,7 @@ class DetailActivity : AppCompatActivity() {
         miniCtrl.visibility = if (miniCtrl.isVisible) View.GONE else View.VISIBLE
     }
 
-    /* ── 📱 ইউটিউব-স্টাইল টাচ: ট্যাপ = কন্ট্রোল; ⬇ টানা = ছোট বার; ⬆ টানা = বড়/ফুলস্ক্রিন ── */
+    /* ── 📱 ইউটিউব-স্টাইল টাচ: ট্যাপ = কন্ট্রোল; ⬇ টানা = ভাসমান পপআপ; ⬆ টানা = ফুলস্ক্রিন ── */
     private fun setupMiniPlayerTouch() {
         var x0 = 0f
         var y0 = 0f
@@ -320,11 +350,10 @@ class DetailActivity : AppCompatActivity() {
                     val dx = ev.x - x0
                     val dy = ev.y - y0
                     when {
-                        /* ⬇ নিচে টানলে ছোট বারে নামে (ইউটিউবের মতো) */
-                        dy > dp(90) && abs(dy) > abs(dx) && !minimized -> toggleMiniSize()
-                        /* ⬆ উপরে টানলে ছোট বার বড় হয়; বড় হলে ফুলস্ক্রিনে যায় */
-                        dy < -dp(90) && abs(dy) > abs(dx) ->
-                            if (minimized) toggleMiniSize() else openFullscreen()
+                        /* ⬇ নিচে টানলে ভাসমান পপআপে যায় (টেনে সরানো যায়, বন্ধ করা যায়) */
+                        dy > dp(90) && abs(dy) > abs(dx) -> floatToPopup()
+                        /* ⬆ উপরে টানলে ফুলস্ক্রিন প্লেয়ারে যায় */
+                        dy < -dp(90) && abs(dy) > abs(dx) -> openFullscreen()
                         /* সাধারণ ট্যাপ → কন্ট্রোল টগল */
                         !moved -> if (player != null) toggleMiniCtrl()
                     }
@@ -335,17 +364,12 @@ class DetailActivity : AppCompatActivity() {
         }
     }
 
-    /* ── ✅ দেখা হয়ে যাওয়া এপিসোডের সবুজ মার্ক (অ্যাপ বন্ধ করলেও মনে থাকে) ── */
+    /* ── ▶ এখন যে এপিসোড প্লে হচ্ছে শুধু সেটার সবুজ-মার্ক (টাইলে সবুজ গ্রেডিয়েন্ট) ── */
 
-    private fun watchedKey(name: String) = "${movie?.title.orEmpty()}::$name"
+    private fun isNowPlaying(name: String) = name == playingName
 
-    private fun isWatched(name: String) =
-        watchedPrefs.getBoolean(watchedKey(name), false)
-
-    /** এপিসোড চালু হলেই "দেখা হয়েছে" মার্ক — চিপগুলো সাথে সাথে সবুজ হয়ে যায় */
-    private fun markWatched(name: String) {
-        if (name.isBlank() || isWatched(name)) return
-        watchedPrefs.edit().putBoolean(watchedKey(name), true).apply()
+    /** চলমান এপিসোড বদলালে চিপ-গ্রিড-লিস্ট সব একসাথে নতুন করে আঁকা হয় */
+    private fun refreshPlayingMark() {
         movie?.let { buildLinkChips(it) }
         /* প্যানেল খোলা থাকলে গ্রিডও নতুন করে আঁকা হয় */
         val panel = findViewById<View>(R.id.seasonPanel)
@@ -360,7 +384,9 @@ class DetailActivity : AppCompatActivity() {
     private fun showMiniAudioDialog() {
         val p = player
         if (p == null) {
-            Toast.makeText(this, "আগে মুভি চালু করো — তারপর অডিও বাছা যাবে", Toast.LENGTH_SHORT).show()
+            /* 🪟 পপআপ ভাসছে থাকলে ওর অডিও-ই বদলাবে */
+            if (FloatPlayer.isActive) FloatPlayer.showAudioDialogFor(this)
+            else Toast.makeText(this, "আগে মুভি চালু করো — তারপর অডিও বাছা যাবে", Toast.LENGTH_SHORT).show()
             return
         }
         val groups = p.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
@@ -434,15 +460,35 @@ class DetailActivity : AppCompatActivity() {
             .show()
     }
 
-    /** 🗕 মিনিমাইজ — প্লেয়ার ছোট বারে নামে; আবার ট্যাপ করলে বড় হয় */
-    private fun toggleMiniSize() {
-        minimized = !minimized
-        playerBox.layoutParams = playerBox.layoutParams.also {
-            it.height = dp(if (minimized) 64 else 230)
-        }
-        findViewById<ImageButton>(R.id.btnMiniMin).setImageResource(
-            if (minimized) R.drawable.ic_fullscreen else R.drawable.ic_minimize
+    /** 🔊 ভলিউম আপ/ডাউন — ফোনের মিডিয়া-ভলিউম এক ধাপ করে */
+    private fun stepVol(delta: Int) {
+        val a = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val cur = a.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val max = a.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        a.setStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            (cur + delta).coerceIn(0, max),
+            AudioManager.FLAG_SHOW_UI
         )
+    }
+
+    /** 🪟 ⧉ ফ্লোট — চলমান ভিডিও ভাসমান পপআপ হয়ে যাবে; ডিটেইল-পেজ আগের মতো থাকবে */
+    private fun floatToPopup() {
+        val p = player ?: run {
+            Toast.makeText(this, "আগে মুভি চালু করো — তারপর পপআপে ভাসবে", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val u = playingUrl
+        val n = playingName
+        val t = movie?.title ?: ""
+        ui.removeCallbacks(tick)
+        player = null
+        pv.player = null
+        pv.visibility = View.GONE
+        posterCover.visibility = View.VISIBLE
+        miniCtrl.visibility = View.GONE
+        FloatPlayer.floatFromDetail(this, p, u, n, t)
+        Toast.makeText(this, "পপআপে চলছে — টেনে সরাও, ⛶ দিলে বড়, ✕ দিলে বন্ধ", Toast.LENGTH_SHORT).show()
     }
 
     /** ⛶ ফুলস্ক্রিন প্লেয়ার — এখনকার পজিশন সেখানে বসে (ফিরে এলে আবার মিনিতে) */
@@ -479,7 +525,7 @@ class DetailActivity : AppCompatActivity() {
         if (::miniCtrl.isInitialized) miniCtrl.visibility = View.GONE
     }
 
-    /** সময়/প্রগ্রেস/প্লে-আইকন — অর্ধ সেকেন্ড পরপর */
+    /** সময়/সিক-বার/প্লে-আইকন — অর্ধ সেকেন্ড পরপর (সিক টানার সময় প্রিভিউকে বিরক্ত করে না) */
     private val tick = object : Runnable {
         override fun run() {
             val p = player
@@ -487,7 +533,10 @@ class DetailActivity : AppCompatActivity() {
                 val dur = p.duration.coerceAtLeast(0)
                 val pos = p.currentPosition.coerceAtLeast(0)
                 miniTime.text = fmt(pos) + " / " + if (dur > 0) fmt(dur) else "…"
-                miniBar.progress = if (dur > 0) ((pos * 100L) / dur).toInt() else 0
+                if (!scrubbing) {
+                    miniBar.setDuration(if (dur > 0) dur else 0)
+                    miniBar.setPosition(pos)
+                }
                 btnMiniPlay.setImageResource(if (p.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
             }
             ui.postDelayed(this, 500)
@@ -508,11 +557,19 @@ class DetailActivity : AppCompatActivity() {
     /** 🎬 ফুলস্ক্রিন প্লেয়ার থেকে ফিরে এলে ওখানকার পজিশন থেকেই মিনি চলবে */
     override fun onResume() {
         super.onResume()
+        /* 🪟 ভাসমান পপআপ থাকলে এই পেজে এসে বসবে */
+        FloatPlayer.reattach(this)
+
         if (playingUrl.isNotBlank() && PlayerActivity.handoffUrl == playingUrl &&
-            PlayerActivity.handoffPos >= 0 && player != null
+            PlayerActivity.handoffPos >= 0
         ) {
-            player?.seekTo(PlayerActivity.handoffPos)
-            player?.play()
+            if (player != null) {
+                player?.seekTo(PlayerActivity.handoffPos)
+                player?.play()
+            } else {
+                /* 🪟 পপআপ থেকে ⛶ দিয়ে ফুলস্ক্রিনে গিয়ে ফিরলে মিনি নতুন করে চালু */
+                startMini(PlayerActivity.handoffUrl, playingName, PlayerActivity.handoffPos)
+            }
         }
         PlayerActivity.handoffUrl = ""
         PlayerActivity.handoffPos = -1
@@ -541,12 +598,15 @@ class DetailActivity : AppCompatActivity() {
             val tv = TextView(this)
             tv.text = label
             tv.setPadding(dp(14), dp(9), dp(14), dp(9))
-            /* ✅ দেখা হয়ে গেলে চিপে সবুজ বর্ডার-মার্ক */
+            /* ▶ এখন যেটা প্লে হচ্ছে শুধু সেটার চিপে সবুজ মার্ক */
             tv.background = getDrawableCompat(
-                if (link != null && isWatched(link.name)) R.drawable.bg_chip_watched
+                if (link != null && isNowPlaying(link.name)) R.drawable.bg_chip_watched
                 else R.drawable.bg_chip
             )
-            tv.setTextColor(0xFFFFFFFF.toInt())
+            if (link != null && isNowPlaying(link.name)) {
+                tv.setTextColor(0xFF22C55E.toInt())
+                tv.setTypeface(tv.typeface, android.graphics.Typeface.BOLD)
+            } else tv.setTextColor(0xFFFFFFFF.toInt())
             tv.textSize = 13f
             val lp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -598,7 +658,8 @@ class DetailActivity : AppCompatActivity() {
                 val tv = TextView(this@DetailActivity)
                 tv.gravity = android.view.Gravity.CENTER
                 tv.setPadding(0, dp(14), 0, dp(14))
-                tv.background = getDrawableCompat(R.drawable.bg_chip)
+                /* রেফারেন্স-অ্যাপের মতো গোল-কোণা গাঢ় টাইল */
+                tv.background = getDrawableCompat(R.drawable.bg_tile)
                 tv.setTextColor(0xFFFFFFFF.toInt())
                 tv.textSize = 13f
                 val lp = gridCellParams()
@@ -612,9 +673,15 @@ class DetailActivity : AppCompatActivity() {
                 h.tv.text = if (useNumbers)
                     String.format(Locale.US, "%02d", epRe.find(l.name)?.groupValues?.get(1)?.toInt() ?: 0)
                 else l.name
-                /* ✅ দেখা হয়ে গেলে গ্রিডেও সবুজ মার্ক (ভিউ রিসাইকেল হয়, তাই দুই দিকই সেট করা) */
+                /* ▶ এখন প্লে হচ্ছে যেটা — শুধু সেটার টাইল সবুজ-গ্রেডিয়েন্ট (ভিউ রিসাইকেল হয়, তাই দুই দিকই সেট) */
+                val now = isNowPlaying(l.name)
                 h.tv.background = getDrawableCompat(
-                    if (isWatched(l.name)) R.drawable.bg_chip_watched else R.drawable.bg_chip
+                    if (now) R.drawable.bg_tile_playing else R.drawable.bg_tile
+                )
+                h.tv.setTextColor(if (now) 0xFF22C55E.toInt() else 0xFFFFFFFF.toInt())
+                h.tv.setTypeface(
+                    h.tv.typeface,
+                    if (now) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
                 )
                 h.tv.setOnClickListener {
                     panel.visibility = View.GONE
@@ -783,6 +850,7 @@ class DetailActivity : AppCompatActivity() {
         super.onDestroy()
         ui.removeCallbacksAndMessages(null)
         releaseMini()
+        FloatPlayer.onHostDestroyed(this)   /* 🪟 অ্যাপ থেকে বের হলে পপআপও বন্ধ */
     }
 
     /* ── ফাইল লিস্ট (ওয়েবসাইটের আসল নাম ও লিংক) ─────────────── */
@@ -811,8 +879,8 @@ class DetailActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, pos: Int) {
             val link = links[pos]
             h.name.text = link.name
-            /* ✅ দেখা হয়ে গেলে লিস্টে নাম সবুজ হয়ে যায় */
-            if (isWatched(link.name)) h.name.setTextColor(0xFF22C55E.toInt())
+            /* ▶ এখন প্লে হচ্ছে যেটা — লিস্টে শুধু সেটার নাম সবুজ */
+            if (isNowPlaying(link.name)) h.name.setTextColor(0xFF22C55E.toInt())
             else h.name.setTextColor(
                 androidx.core.content.ContextCompat.getColor(this@DetailActivity, R.color.textMain)
             )

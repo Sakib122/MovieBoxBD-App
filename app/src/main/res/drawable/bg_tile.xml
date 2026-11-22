@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 📺 এপিসোড-গ্রিডের সাধারণ টাইল (রেফারেন্স-অ্যাপের মতো গোল কোণা, গাঢ়) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#1E2735" />
+    <corners android:radius="12dp" />
+</shape>

@@ -48,6 +48,16 @@ class AdultActivity : AppCompatActivity() {
         load(true)
     }
 
+    override fun onResume() {
+        super.onResume()
+        FloatPlayer.reattach(this)         /* 🪟 ভাসমান পপআপ ১৮+ পেজেও ভাসতে থাকবে */
+    }
+
+    override fun onDestroy() {
+        FloatPlayer.onHostDestroyed(this)
+        super.onDestroy()
+    }
+
     private fun load(reset: Boolean) {
         if (loading) return
         if (reset) {
