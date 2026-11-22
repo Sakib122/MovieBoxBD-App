@@ -20,41 +20,43 @@
         android:textColor="@color/textMain"
         android:textSize="14sp" />
 
-    <TextView
+    <ImageButton
         android:id="@+id/btnPlay"
         android:layout_width="46dp"
         android:layout_height="46dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:gravity="center"
-        android:text="▶"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp" />
+        android:contentDescription="play"
+        android:padding="11dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_play" />
 
-    <TextView
+    <ImageButton
         android:id="@+id/btnDownload"
         android:layout_width="46dp"
         android:layout_height="46dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:gravity="center"
-        android:text="⬇"
-        android:textColor="#00E5A0"
-        android:textSize="17sp" />
+        android:contentDescription="download"
+        android:padding="11dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_download" />
 
-    <TextView
+    <ImageButton
         android:id="@+id/btnBrowser"
         android:layout_width="46dp"
         android:layout_height="46dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:gravity="center"
-        android:text="🌐"
-        android:textSize="16sp" />
+        android:contentDescription="browser"
+        android:padding="11dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_globe" />
 
-    <TextView
+    <ImageButton
         android:id="@+id/btnTg"
         android:layout_width="46dp"
         android:layout_height="46dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:gravity="center"
-        android:text="✈️"
-        android:textSize="16sp" />
+        android:contentDescription="telegram"
+        android:padding="11dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_telegram" />
 </LinearLayout>

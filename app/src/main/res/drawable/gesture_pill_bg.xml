@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- জেসচার-পিল (ভলিউম/ব্রাইটনেস/2x) — গোল-কোণা অন্ধকার পিল -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#B3181830" />
+    <corners android:radius="20dp" />
+</shape>

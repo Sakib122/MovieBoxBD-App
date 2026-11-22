@@ -2,18 +2,18 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/navHome"
-        android:icon="@android:drawable/ic_menu_today"
-        android:title="হোম" />
+        android:icon="@drawable/ic_home"
+        android:title="Home" />
     <item
         android:id="@+id/navSeries"
-        android:icon="@android:drawable/ic_menu_slideshow"
-        android:title="ওয়েব সিরিজ" />
+        android:icon="@drawable/ic_tv"
+        android:title="Web Series" />
     <item
         android:id="@+id/navMovies"
-        android:icon="@android:drawable/ic_menu_gallery"
-        android:title="মুভি" />
+        android:icon="@drawable/ic_movie"
+        android:title="Movies" />
     <item
         android:id="@+id/navSearch"
-        android:icon="@android:drawable/ic_menu_search"
-        android:title="সার্চ" />
+        android:icon="@drawable/ic_search"
+        android:title="Search" />
 </menu>

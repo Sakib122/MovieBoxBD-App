@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- For You গ্রিডের এক কার্ড: পোস্টার + ভাষা-ব্যাজ + টাইটেল (রেফারেন্স-অ্যাপের মতো) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="3dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="160dp">
+
+        <ImageView
+            android:id="@+id/fyImg"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/surface2"
+            android:contentDescription="poster"
+            android:scaleType="centerCrop" />
+
+        <View
+            android:id="@+id/fyScrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#B3000000"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/fyBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:background="@drawable/bg_chip"
+            android:paddingHorizontal="7dp"
+            android:paddingVertical="2dp"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/fyTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/textMain"
+        android:textSize="12sp" />
+</LinearLayout>

@@ -164,7 +164,7 @@ class UploadCheckWorker(context: Context, params: WorkerParameters) :
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            val head = if (isAdult) "🔞 নতুন 18+ আপলোড এসেছে!" else "🎬 নতুন মুভি এসেছে!"
+            val head = if (isAdult) "নতুন 18+ আপলোড এসেছে!" else "নতুন মুভি এসেছে!"
 
             val b = NotificationCompat.Builder(ctx, "new_upload")
                 .setSmallIcon(R.mipmap.ic_launcher)

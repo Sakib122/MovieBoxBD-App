@@ -38,7 +38,7 @@
             android:textStyle="bold" />       
 
         <!-- ✈️ টেলিগ্রাম চ্যানেল + 🔄 রিলোড -->
-        <TextView
+        <ImageButton
             android:id="@+id/btnTgIcon"
             android:layout_width="44dp"
             android:layout_height="44dp"
@@ -46,11 +46,11 @@
             android:layout_marginEnd="60dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="telegram"
-            android:gravity="center"
-            android:text="✈️"
-            android:textSize="17sp" />
+            android:padding="10dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_telegram" />
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnReload"
             android:layout_width="48dp"
             android:layout_height="48dp"
@@ -58,9 +58,9 @@
             android:layout_marginEnd="10dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="reload"
-            android:gravity="center"
-            android:text="🔄"
-            android:textSize="18sp" />
+            android:padding="11dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_rotate" />
     </FrameLayout>
 
     <!-- 🚀 নতুন আপডেট ব্যানার — অ্যাডমিন প্যানেলে নতুন ভার্সন দিলে এখানে ফুটে ওঠে -->
@@ -268,7 +268,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:padding="24dp"
-                android:text="🔍 কিছু পাওয়া যায়নি — আবার চেষ্টা করো"
+                android:text="কিছু পাওয়া যায়নি — আবার চেষ্টা করো"
                 android:textColor="@color/textSub"
                 android:visibility="gone" />
 

@@ -31,7 +31,10 @@ class AdultActivity : AppCompatActivity() {
         val recycler = findViewById<RecyclerView>(R.id.adultGrid)
         spinner = findViewById(R.id.adultSpinner)
         emptyBox = findViewById(R.id.adultEmpty)
-        adapter = MovieAdapter(items) { m -> startActivity(DetailActivity.intent(this, m)) }
+        adapter = MovieAdapter(items) { m ->
+            Ads.onPosterOpened(this, true) /* 💰 পোস্টার-ক্লিকে সাথে সাথে র‍্যান্ডম অ্যাডাল্ট লিংক */
+            startActivity(DetailActivity.intent(this, m))
+        }
         recycler.layoutManager = GridLayoutManager(this, 2)
         recycler.adapter = adapter
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {

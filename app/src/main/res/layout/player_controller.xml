@@ -5,15 +5,14 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- উপরের বার: ব্যাক + টাইটেল (নোটচ/স্ট্যাটাস বারের নিচে চাপা পড়বে না —
-         PlayerActivity ইনসেট হিসাব করে এখানে প্যাডিং বসায়) -->
+    <!-- উপরের বার: ব্যাক + টাইটেল + Help + Setting (রেফারেন্স-প্লেয়ারের মতো) -->
     <LinearLayout
         android:id="@+id/ctrlTop"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/player_bar"
         android:gravity="center_vertical"
-        android:minHeight="48dp"
+        android:minHeight="52dp"
         android:orientation="horizontal">
 
         <ImageButton
@@ -22,7 +21,7 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="back"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="@drawable/ic_back"
             app:tint="#FFFFFF" />
 
         <TextView
@@ -32,9 +31,33 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:paddingEnd="12dp"
+            android:paddingEnd="8dp"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/btnHelp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:drawableStart="@drawable/ic_help"
+            android:drawablePadding="4dp"
+            android:padding="10dp"
+            android:text="Help"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/btnSetting"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:drawableStart="@drawable/ic_settings"
+            android:drawablePadding="4dp"
+            android:padding="10dp"
+            android:text="Setting"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
     </LinearLayout>
 
     <!-- মাঝের ফাঁকা জায়গা (ভিডিও দেখা যাবে) -->
@@ -43,7 +66,82 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <!-- নিচের কন্ট্রোল বার (নেভিগেশন বারের নিচে চাপা পড়বে না) -->
+    <!-- ⏪10 ▶ ⏩10 — রেফারেন্স-প্লেয়ারের সেন্টার কন্ট্রোল -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingBottom="6dp">
+
+        <FrameLayout
+            android:id="@+id/btnRew10"
+            android:layout_width="58dp"
+            android:layout_height="58dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="center"
+                android:contentDescription="rew10"
+                android:src="@drawable/ic_rew10" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginStart="2dp"
+                android:text="10"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <!-- ⏯ Media3-এর এক-বাটন প্লে/পজ — আইকন ও ক্লিক Media3 নিজেই সামলায় -->
+        <ImageButton
+            android:id="@id/exo_play_pause"
+            android:layout_width="66dp"
+            android:layout_height="66dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/player_btn_circle"
+            android:contentDescription="play"
+            android:padding="16dp"
+            android:scaleType="fitCenter"
+            android:src="@android:drawable/ic_media_play"
+            app:tint="#FFFFFF" />
+
+        <FrameLayout
+            android:id="@+id/btnFwd10"
+            android:layout_width="58dp"
+            android:layout_height="58dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="center"
+                android:contentDescription="fwd10"
+                android:src="@drawable/ic_ffwd10" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginStart="2dp"
+                android:text="10"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- নিচের কন্ট্রোল বার: টাইম-বার + Fit / Language / Speed / Quality -->
     <LinearLayout
         android:id="@+id/ctrlBottom"
         android:layout_width="match_parent"
@@ -86,49 +184,74 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <ImageButton
-                android:id="@id/exo_rew"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="rew"
-                android:src="@android:drawable/ic_media_rew"
-                app:tint="#FFFFFF" />
-
-            <!-- ⏯ Media3-এর এক-বাটন প্লে/পজ — আইকন ও ক্লিক Media3 নিজেই সামলায়
-                 (আগের exo_play/exo_pause দুই বাটন Media3 ১.২.১ চেনেই না, তাই বাটনটা মরা ছিল) -->
-            <ImageButton
-                android:id="@id/exo_play_pause"
-                android:layout_width="66dp"
-                android:layout_height="66dp"
-                android:layout_marginHorizontal="6dp"
-                android:background="@drawable/player_btn_circle"
-                android:contentDescription="play"
-                android:padding="16dp"
-                android:scaleType="fitCenter"
-                android:src="@android:drawable/ic_media_play"
-                app:tint="#FFFFFF" />
-
-            <ImageButton
-                android:id="@id/exo_ffwd"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="ffwd"
-                android:src="@android:drawable/ic_media_ff"
-                app:tint="#FFFFFF" />
-
-            <ImageButton
                 android:id="@+id/btnPRotate"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="rotate"
-                android:src="@android:drawable/ic_menu_always_landscape_portrait"
+                android:src="@drawable/ic_rotate"
                 app:tint="#FFFFFF" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- ⛶ স্ক্রিন মোড: Fit → Zoom → Stretch -->
+            <TextView
+                android:id="@+id/btnMScale"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:drawableStart="@drawable/ic_fit"
+                android:drawablePadding="5dp"
+                android:padding="10dp"
+                android:text="Fit"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+
+            <!-- 🎧 অডিও ট্র্যাক (ভাষা) -->
+            <TextView
+                android:id="@+id/btnMAudio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:drawableStart="@drawable/ic_lang"
+                android:drawablePadding="5dp"
+                android:padding="10dp"
+                android:text="Language"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+
+            <!-- ⚡ প্লে স্পিড -->
+            <TextView
+                android:id="@+id/btnMSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:drawableStart="@drawable/ic_speed"
+                android:drawablePadding="5dp"
+                android:padding="10dp"
+                android:text="1x"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+
+            <!-- 🎬 ভিডিও কোয়ালিটি (Auto/1080P/720P/480P/360P) -->
+            <TextView
+                android:id="@+id/btnMQ"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:drawableStart="@drawable/ic_video"
+                android:drawablePadding="5dp"
+                android:padding="10dp"
+                android:text="Auto"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

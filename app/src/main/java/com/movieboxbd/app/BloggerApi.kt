@@ -179,7 +179,7 @@ object BloggerApi {
         /* ② পোস্টে সরাসরি t.me ডাউনলোড লিংক থাকলে (ভবিষ্যতের পোস্টের জন্য) */
         if (media.isNotEmpty()) {
             for (m in TM_RE.findAll(content)) {
-                add(MediaLink(name = "⬇ টেলিগ্রাম ডাউনলোড", streamUrl = "", tgUrl = m.value.trim()))
+                add(MediaLink(name = "টেলিগ্রাম ডাউনলোড", streamUrl = "", tgUrl = m.value.trim()))
             }
         }
 

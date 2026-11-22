@@ -107,8 +107,8 @@ class MainActivity : AppCompatActivity() {
 
         homeList.layoutManager = LinearLayoutManager(this)
 
-        /* 💰 হোম স্ক্রিনের নিচের ব্যানার অ্যাড (তোমার Adsterra) */
-        Ads.applyBanner(findViewById(R.id.adBanner), Config.ADSTERRA_BANNER_320x50)
+        /* 💰 হোম স্ক্রিনের নিচের ব্যানার অ্যাড — হোমে সবসময় সাধারণ (১৮+ নয়) অ্যাড */
+        Ads.applyBanner(findViewById(R.id.adBanner), Ads.bannerHtml(false, true))
 
         findViewById<View>(R.id.btnRetry).setOnClickListener { load(true) }
         findViewById<View>(R.id.btnRetryHome).setOnClickListener { loadHome(true) }
@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
 
         /* 🔄 রিলোড — হোম ট্যাবে হোম নতুন করে লোড হবে, অন্য ট্যাবে সেই লিস্ট */
         findViewById<View>(R.id.btnReload).setOnClickListener {
-            Toast.makeText(this, "🔄 রিফ্রেশ করা হচ্ছে…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "রিফ্রেশ করা হচ্ছে", Toast.LENGTH_SHORT).show()
             when (tab) {
                 R.id.navHome -> { homeLoaded = false; loadHome(true) }
                 R.id.navSearch -> doSearch()
@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
             if (Config.TELEGRAM_URL.isBlank()) return@setOnClickListener
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Config.TELEGRAM_URL)))
-                Toast.makeText(this, "✈️ টেলিগ্রাম চ্যানেল খুলছে…", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "টেলিগ্রাম চ্যানেল খুলছে", Toast.LENGTH_SHORT).show()
             } catch (_: Exception) {
             }
         }
@@ -138,7 +138,7 @@ class MainActivity : AppCompatActivity() {
            প্রথমে ১৮+ পারমিশন চাইবে, "হ্যাঁ" দিলে তবেই Adult পেজ খুলবে */
         findViewById<View>(R.id.btnAdult).setOnClickListener {
             MaterialAlertDialogBuilder(this)
-                .setTitle("🔞 18+ Adult Content")
+                .setTitle("18+ Adult Content")
                 .setMessage("এই সেকশনে শুধু ১৮ বছরের ঊর্ধ্বেদের জন্য কনটেন্ট আছে।\n\nআপনি কি ১৮ বছর বা তার বেশি বয়সী?")
                 .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
                     startActivity(Intent(this, AdultActivity::class.java))
@@ -181,7 +181,7 @@ class MainActivity : AppCompatActivity() {
         if (intent?.getBooleanExtra("open_adult", false) != true) return
         try { intent.removeExtra("open_adult") } catch (_: Exception) {}
         MaterialAlertDialogBuilder(this)
-            .setTitle("🔞 18+ Adult Content")
+            .setTitle("18+ Adult Content")
             .setMessage("এই কনটেন্ট শুধুমাত্র ১৮ বছর বা তার বেশি বয়সীদের জন্য।\n\nআপনি কি ১৮ বছর পার করেছেন?")
             .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
                 startActivity(Intent(this, AdultActivity::class.java))
@@ -223,7 +223,7 @@ class MainActivity : AppCompatActivity() {
                 MaterialAlertDialogBuilder(this)
                     .setTitle("🚀 নতুন ভার্সন ${info.name} এসেছে!")
                     .setMessage(msg)
-                    .setPositiveButton("⬇️ আপডেট করো") { _, _ ->
+                    .setPositiveButton("আপডেট করো") { _, _ ->
                         try {
                             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
                         } catch (_: Exception) {}
@@ -262,10 +262,10 @@ class MainActivity : AppCompatActivity() {
         /* 🔞 এডাল্ট কার্ডে ক্লিক — আগে ১৮+ পপআপ, "হ্যাঁ" দিলে তবেই খুলবে */
         if (BloggerApi.isAdult(m)) {
             MaterialAlertDialogBuilder(this)
-                .setTitle("🔞 18+ Adult Content")
+                .setTitle("18+ Adult Content")
                 .setMessage("এই কনটেন্ট শুধুমাত্র ১৮ বছর বা তার বেশি বয়সীদের জন্য।\n\nআপনি কি ১৮ বছর পার করেছেন?")
                 .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
-                    Ads.onMovieOpened(this) /* 💰 পপআন্ডার */
+                    Ads.onPosterOpened(this, true) /* 💰 পোস্টার-ক্লিকে সাথে সাথে র‍্যান্ডম অ্যাডাল্ট লিংক */
                     startActivity(DetailActivity.intent(this, m))
                 }
                 .setNegativeButton("না", null)
@@ -273,7 +273,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
             return
         }
-        Ads.onMovieOpened(this) /* 💰 পপআন্ডার (প্রতি ২ বারে) */
+        Ads.onPosterOpened(this, false) /* 💰 পোস্টার-ক্লিকে সাথে সাথে র‍্যান্ডম ডাইরেক্ট লিংক */
         startActivity(DetailActivity.intent(this, m))
     }
 
@@ -290,8 +290,12 @@ class MainActivity : AppCompatActivity() {
                 val all = ArrayList(p1.items)
                 all.addAll(p2.items)
 
-                /* 🏷️ English / Horror / Korean — সাম্প্রতিক পোস্টে কম থাকে, তাই নিজের লেবেল-ফিড
-                   থেকে সর্বশেষ ১০টা করে আনি → হিন্দি/বাংলার মতোই সেকশন ভরা দেখাবে (৩ থ্রেডে দ্রুত) */
+                /* 📺 ওয়েব সিরিজ — সর্বশেষ ৪০ পোস্টে অনেক সময় ১টাই থাকে, তাই নিজের "Web Series"
+                   লেবেল-ফিড থেকে ২ পেজ পর্যন্ত আনি → যত ওয়েব সিরিজ আছে প্রায় সবগুলোই রো-তে দেখাবে */
+                var seriesAll: List<MovieItem> = emptyList()
+                val tWs = Thread { seriesAll = labelFeed2("Web Series") }
+                tWs.start()
+
                 var english: List<MovieItem> = emptyList()
                 var horror: List<MovieItem> = emptyList()
                 var korean: List<MovieItem> = emptyList()
@@ -301,27 +305,29 @@ class MainActivity : AppCompatActivity() {
                 val tKo = Thread { korean = labelFeed("Korean") }
                 val tAn = Thread { anime = labelFeed("Anime") }
                 tEn.start(); tHo.start(); tKo.start(); tAn.start()
-                tEn.join(8000); tHo.join(8000); tKo.join(8000); tAn.join(8000)
+                tEn.join(8000); tHo.join(8000); tKo.join(8000); tAn.join(8000); tWs.join(8000)
 
                 val heroes = all.filter { !BloggerApi.isAdult(it) }.take(4)   /* 🎬 হিরো স্লাইডার — সর্বশেষ ৪টা (এডাল্ট বাদ) */
 
-                val series = all.filter { BloggerApi.isWebSeries(it.title, it.labels) }
+                val series = if (seriesAll.size >= 4) seriesAll
+                             else all.filter { BloggerApi.isWebSeries(it.title, it.labels) }
                 val hindi = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
                         it.labels.any { l -> l.equals("Hindi", true) || l.equals("Hindi Dubbed", true) } }
                 val bangla = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
                         it.labels.any { l -> Config.BANGLA_LABELS.any { b -> l.equals(b, true) } } }
                 val dub = all.filter { it.labels.any { l -> Config.BANGLA_DUB_LABELS.any { b -> l.equals(b, true) } } }
 
+                /* 🏷️ সেকশন-হেডার ইংরেজিতে (মালিকের নির্দেশ) */
                 val sections = ArrayList<Pair<String, List<MovieItem>>>()
-                sections.add("🔥 নতুন আপলোড" to all.take(10))
-                if (series.isNotEmpty()) sections.add("📺 ওয়েব সিরিজ" to series.take(10))
-                if (dub.isNotEmpty()) sections.add("🎙️ বাংলা ডাব" to dub.take(10))
-                if (hindi.isNotEmpty()) sections.add("🇮🇳 হিন্দি মুভি" to hindi.take(10))
-                if (bangla.isNotEmpty()) sections.add("🇧🇩 বাংলা মুভি" to bangla.take(10))
-                if (english.isNotEmpty()) sections.add("🇬🇧 ইংলিশ মুভি" to english.take(10))
-                if (horror.isNotEmpty()) sections.add("👻 হরর মুভি" to horror.take(10))
-                if (korean.isNotEmpty()) sections.add("🇰🇷 কোরিয়ান মুভি" to korean.take(10))
-                if (anime.isNotEmpty()) sections.add("🐉 অ্যানিমে" to anime.take(10))                                
+                sections.add("Recently Uploaded" to all.take(10))
+                if (series.isNotEmpty()) sections.add("Web Series" to series)   /* যত ওয়েব সিরিজ আছে ততগুলো */
+                if (dub.isNotEmpty()) sections.add("Bangla Dub" to dub.take(10))
+                if (hindi.isNotEmpty()) sections.add("Hindi Movies" to hindi.take(10))
+                if (bangla.isNotEmpty()) sections.add("Bangla Movies" to bangla.take(10))
+                if (english.isNotEmpty()) sections.add("English Movies" to english.take(10))
+                if (horror.isNotEmpty()) sections.add("Horror Movies" to horror.take(10))
+                if (korean.isNotEmpty()) sections.add("Korean Movies" to korean.take(10))
+                if (anime.isNotEmpty()) sections.add("Anime" to anime.take(10))
 
                 runOnUiThread {
                     homeSpinner.visibility = View.GONE
@@ -347,36 +353,46 @@ class MainActivity : AppCompatActivity() {
         emptyList()
     }
 
+    /** 🏷️ এক লেবেলের ২ পেজ পর্যন্ত পোস্ট (ওয়েব সিরিজের ফুল-লিস্টের জন্য) */
+    private fun labelFeed2(label: String): List<MovieItem> = try {
+        val p1 = BloggerApi.load(label, null, 1)
+        val out = ArrayList(p1.items)
+        try {
+            val p2 = BloggerApi.load(label, null, 1 + p1.items.size)
+            out.addAll(p2.items)
+        } catch (_: Exception) {}
+        out
+    } catch (_: Exception) {
+        emptyList()
+    }
+
     /* ══════════ 🎬 মুভি / 📺 ওয়েব সিরিজ গ্রিড ══════════ */
 
     private fun buildChips() {
         chips.removeAllViews()
         val names = ArrayList<String>()
         if (tab == R.id.navSeries) {
-            names.add("📺 ওয়েব সিরিজ")
+            names.add("Web Series")
             for (l in Config.WEB_SERIES_LABELS) if (!names.contains(l)) names.add(l)
         } else {
-            names.add("🔥 সব")
+            names.add("All")
             for (l in Config.CATEGORY_LABELS) {
-                /* 🇧🇩 ব্লগে লেবেল "Bengali" — অ্যাপে দেখাবে "বাংলা" ট্যাব হিসেবে */
-                val shown = if (Config.BANGLA_LABELS.any { b -> l.equals(b, true) })
-                    Config.BANGLA_TAB_NAME else l
-                if (!names.contains(shown)) names.add(shown)
+                if (!names.contains(l)) names.add(l)
             }
         }
         for (name in names) {
             val chip = Chip(this)
             chip.text = name
             chip.isCheckable = true
-            val isAll = name == "🔥 সব" || name == "📺 ওয়েব সিরিজ"
-            /* ট্যাবের দেখার নাম → ব্লগের আসল লেবেল (বাংলা → Bengali) */
+            val isAll = name == "All" || name == "Web Series"
+            /* ট্যাবের দেখার নাম → ব্লগের আসল লেবেল (Bangla → Bengali) */
             val query = when {
                 isAll -> if (tab == R.id.navSeries) "Web Series" else null
-                name == Config.BANGLA_TAB_NAME -> Config.BANGLA_MAIN_LABEL
+                name.equals("Bangla", true) -> Config.BANGLA_MAIN_LABEL
                 else -> name
             }
             chip.isChecked = when {
-                tab == R.id.navSeries -> name == "📺 ওয়েব সিরিজ" && currentLabel == "Web Series"
+                tab == R.id.navSeries -> name == "Web Series" && currentLabel == "Web Series"
                 isAll -> currentLabel == null
                 else -> query == currentLabel
             }

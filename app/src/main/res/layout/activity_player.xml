@@ -15,6 +15,58 @@
         app:show_buffering="when_playing"
         app:surface_type="surface_view" />
 
+    <!-- 🎛 জেসচার-পিল: 🔊 ভলিউম / ☀️ ব্রাইটনেস — উপরে-মাঝে (রেফারেন্স-প্লেয়ারের মতো) -->
+    <LinearLayout
+        android:id="@+id/gesturePill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="28dp"
+        android:background="@drawable/gesture_pill_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/pillIcon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:contentDescription="pill"
+            android:src="@drawable/ic_vol" />
+
+        <ProgressBar
+            android:id="@+id/pillBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="110dp"
+            android:layout_height="6dp"
+            android:layout_marginStart="10dp"
+            android:max="100"
+            android:progress="50"
+            android:progressBackgroundTint="#66FFFFFF"
+            android:progressTint="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- ⏩ চেপে ধরে রাখলে 2x ফরওয়ার্ড প্লে -->
+    <TextView
+        android:id="@+id/pill2x"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="28dp"
+        android:background="@drawable/gesture_pill_bg"
+        android:drawableStart="@drawable/ic_speed"
+        android:drawablePadding="6dp"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:text="2x"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <!-- টেক্সট-হিন্ট (MX-স্টাইল সিক-প্রিভিউ) -->
     <TextView
         android:id="@+id/gestureHint"
         android:layout_width="wrap_content"
@@ -28,72 +80,34 @@
         android:textSize="16sp"
         android:visibility="gone" />
 
-    <!-- ══ MX স্টাইল মেনু — উল্লম্ব পিল: 🔒 লক / ⚡ স্পিড / 🎧 অডিও / 💬 সাব / ⛶ স্ক্রিন ══
-         ল্যান্ডস্কেপে বাঁ কিনারে, পোর্ট্রেটে ডান কিনারে (PlayerActivity.positionMxBar() ঠিক করে) —
-         মাঝখানের প্লে/পজ বাটন বা মুভি কখনো ঢাকা পড়ে না -->
+    <!-- 🔒 লক-রো: বাঁ মাঝে লক-বাটন + "Tap to Lock" (রেফারেন্স-প্লেয়ারের মতো) -->
     <LinearLayout
-        android:id="@+id/mxBar"
+        android:id="@+id/lockRow"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical|end"
-        android:layout_marginEnd="8dp"
-        android:background="@drawable/mx_bar_bg"
+        android:layout_gravity="start|center_vertical"
+        android:layout_marginStart="10dp"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:paddingVertical="6dp"
         android:visibility="gone">
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnMLock"
             android:layout_width="46dp"
             android:layout_height="46dp"
             android:background="@drawable/player_btn_circle"
-            android:gravity="center"
-            android:text="🔒"
-            android:textSize="17sp" />
+            android:contentDescription="lock"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_lock" />
 
         <TextView
-            android:id="@+id/btnMSpeed"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:background="@drawable/player_btn_circle"
-            android:gravity="center"
-            android:text="1x"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/btnMAudio"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/player_btn_circle"
-            android:gravity="center"
-            android:text="🎧"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/btnMSub"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/player_btn_circle"
-            android:gravity="center"
-            android:text="💬"
-            android:textSize="16sp" />
-
-        <!-- ⛶ স্ক্রিন মোড: ফিট → জুম (পুরো স্ক্রিন ভরে) → টানাটানি → ফিট -->
-        <TextView
-            android:id="@+id/btnMScale"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/player_btn_circle"
-            android:gravity="center"
-            android:text="⛶"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp" />
+            android:text="Tap to Lock"
+            android:textColor="#CCFFFFFF"
+            android:textSize="10sp" />
     </LinearLayout>
 
     <!-- 🔒 লক থাকলে পুরো স্ক্রিন এই লেয়ার গিলে ফেলবে — কোনো ছোঁয়া কাজ করবে না -->
@@ -105,17 +119,18 @@
         android:focusable="true"
         android:visibility="gone" />
 
-    <!-- 🔓 আনলক — উপরের বাম কোণায় (MX Player-এর মতো); লক করলেই শুধু এটা দেখা যাবে -->
-    <TextView
+    <!-- 🔓 আনলক — উপরের বাঁ কোণায়; লক করলেই শুধু এটা দেখা যাবে -->
+    <ImageButton
         android:id="@+id/btnMUnlock"
         android:layout_width="46dp"
         android:layout_height="46dp"
         android:layout_gravity="top|start"
         android:layout_margin="10dp"
         android:background="@drawable/player_btn_circle"
-        android:gravity="center"
-        android:text="🔓"
-        android:textSize="20sp"
+        android:contentDescription="unlock"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_unlock"
         android:visibility="gone" />
 
     <!-- ⚠️ লোড ফেল হলে -->
@@ -135,7 +150,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:text="⚠️ লোড হচ্ছে না"
+            android:text="লোড হচ্ছে না"
             android:textColor="@color/textMain"
             android:textSize="15sp" />
 
@@ -144,7 +159,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="🔄 আবার চেষ্টা করো" />
+            android:text="আবার চেষ্টা করো" />
 
         <!-- সার্ভার ব্যস্ত থাকলে চ্যানেলে গিয়ে ওই ফাইল টেলিগ্রাম থেকে নেওয়া যায় -->
         <com.google.android.material.button.MaterialButton
@@ -152,7 +167,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="✈️ টেলিগ্রাম চ্যানেলে জয়েন করো"
-            app:backgroundTint="#2293DC" />
+            android:text="টেলিগ্রাম চ্যানেলে জয়েন করো"
+            app:backgroundTint="#2293DC"
+            app:icon="@drawable/ic_telegram"
+            app:iconGravity="textStart" />
     </LinearLayout>
 </FrameLayout>

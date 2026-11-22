@@ -10,14 +10,15 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 
 /**
- * 💰 Adsterra অ্যাড — পুরোটা Config.kt থেকে চলে।
+ * 💰 Adsterra অ্যাড — পুরোটা Config.kt থেকে চলে (v3.1 — বটের সিস্টেম হুবহু)।
  *
- * ▶ অ্যাড গেট ফ্লো (৪টা বাটনেই — ▶ প্লে / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম):
- *   ১. বাটন চাপলেই সাথে সাথে Direct Link ব্রাউজারে খোলে
- *      (Direct Link ঘণ্টায় ঘণ্টায় বদলায় — Config.DIRECT_LINKS দেখো)
- *   ২. ইউজার অ্যাডে ~১০ সেকেন্ড থাকে
- *   ৩. ফিরে এলে বাকি সেকেন্ড থাকলে অ্যাপে কাউন্টডাউন — শেষ হলেই কাজটা হয়
- *   ৪. বাইপাস করা যাবে না (সময় পুরো না হলে প্লে/ডাউনলোড হবে না)
+ * ▶ ফ্লো (মালিকের নির্দেশ — বটগুলোর pick_random_link এর মতো):
+ *   ১. মুভি পোস্টারে ক্লিক → সাথে সাথে র‍্যান্ডম Direct Link ব্রাউজারে
+ *      (সাধারণ মুভিতে NORMAL_DIRECT_LINKS, ১৮+ মুভিতে ADULT_DIRECT_LINKS)
+ *   ২. ▶ প্লে / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম — প্রতিবার আরেকটা র‍্যান্ডম Direct Link
+ *      (সর্বশেষ দেখানোটা আবার আসে না) + অ্যাপে ৫ সেকেন্ডের কাউন্টডাউন → শেষ হলেই কাজ
+ *   ৩. বাইপাস নেই — প্রতিবার অ্যাড, তাই ইমপ্রেশন রিয়েল
+ *   ৪. ব্যানার ৪টাই রিয়েল Adsterra কোড, রিয়েল ইমপ্রেশন — ফেক/খালি ব্যানার নেই
  */
 object Ads {
 
@@ -34,8 +35,6 @@ object Ads {
     private const val K_URL = "gate_url"
     private const val K_EXTRA = "gate_extra"
     private const val K_TITLE = "gate_title"
-    private const val K_MOV = "movie_open_count"
-    private const val K_DIRECT_TS = "direct_link_ts"
 
     /* 🔞 এখন যে মুভির পেজ খোলা সেটা ১৮+ কি না — DetailActivity সেট করে */
     var adultNow: Boolean = false
@@ -43,45 +42,27 @@ object Ads {
     /** গেট শেষ হলে যেটা করতে হবে */
     data class PendingAction(val type: Int, val url: String, val title: String, val extra: String)
 
-    /* এডিট ২: পুরনো openDirectLink ফাংশনটা পুরোটা মুছে এটা বসাও */
+    /** সরাসরি র‍্যান্ডম Direct Link ব্রাউজারে খোলা (পোস্টার-ক্লিকের জন্য) */
     fun openDirectLink(ctx: Context, adult: Boolean = false) {
         val url = Config.directLinkNow(adult)
         if (url.isBlank()) return
         try {
-            ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-                .edit().putLong(K_DIRECT_TS, System.currentTimeMillis()).apply()
             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (_: Exception) {
         }
     }
 
-    /** মুভি কার্ডে ক্লিক — প্রতি N বারে ১ বার পপআন্ডার */
-    fun onMovieOpened(ctx: Context) {
-        try {
-            val p = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            val n = p.getInt(K_MOV, 0) + 1
-            p.edit().putInt(K_MOV, n).apply()
-            if (Config.POPUNDER_EVERY_N > 0 && n % Config.POPUNDER_EVERY_N == 0) {
-                openDirectLink(ctx)
-            }
-        } catch (_: Exception) {
-        }
+    /** 🎬 মুভি পোস্টারে ক্লিক → সাথে সাথে র‍্যান্ডম Direct Link (প্রতিবার) */
+    fun onPosterOpened(ctx: Context, adult: Boolean) {
+        openDirectLink(ctx, adult)
     }
 
-    /* এডিট ৩ (ফিক্স): true রিটার্ন মানে "৩ মিনিটের মধ্যে এড দেখা হয়েছে — কলার এখনই নিজে কাজটা করবে"।
-       false মানে "এড খুলছে — ফিরে এসে গেট শেষ হলে কাজটা হবে"। */
+    /** ▶ প্লে / ⬇ ডাউনলোড ইত্যাদির আগে অ্যাড-গেট:
+     *  প্রতিবার নতুন র‍্যান্ডম Direct Link খোলে + অ্যাপে AD_WATCH_SECONDS সেকেন্ডের কাউন্টডাউন,
+     *  ফিরে এলে কাউন্টডাউন শেষ করে কাজটা হয়। বাইপাস নেই। */
     fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = ""): Boolean {
-        val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-        val now = System.currentTimeMillis()
-        /* 🆓 সদ্য (৩ মিনিটের মধ্যে) Direct Link খোলা হলে আর বিরক্ত নয়।
-           আগের বাগ এখানেই ছিল: কাজটা পেন্ডিং সেভ হয়ে ঝুলে থাকত, এড খুলত না
-           বলে কাজ শুরুই হতো না; পরে অন্য মুভির পেজ খুললে পুরনো পেন্ডিংটাই
-           ফায়ার হয়ে ভুল মুভি প্লে/ডাউনলোড হতো।
-           এখন এড-ফ্রি হলে কিছুই সেভ হয় না — কলার সাথে সাথেই কাজটা করে। */
-        val recent = now - p.getLong(K_DIRECT_TS, 0L) < Config.DIRECT_GAP_MIN * 60_000L
-        if (recent) return true
-        p.edit()
-            .putLong(K_TS, now)
+        activity.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+            .putLong(K_TS, System.currentTimeMillis())
             .putBoolean(K_PEND, true)
             .putInt(K_TYPE, type)
             .putString(K_URL, url)
@@ -126,7 +107,33 @@ object Ads {
             .edit().putBoolean(K_PEND, false).remove(K_URL).remove(K_EXTRA).apply()
     }
 
-    /** ব্যানার WebView-এ অ্যাড কোড বসায়; কোড না থাকলে জায়গাটা লুকায় */
+    /* 🎲 ব্যানারের নিজস্ব নো-রিপিট র‍্যান্ডম (লিংকের মতোই) */
+    private val lastBanner = HashMap<String, String>()
+    private val rnd = java.util.Random()
+
+    /** 📢 রিয়েল ব্যানার HTML পিকার।
+     *  wide=true → 320×50 (হোম-নিচ / ডিটেইল-নিচ), wide=false → 300×250 (ডিটেইল-ভেতরে)।
+     *  ১৮+ কনটেন্টে অ্যাডাল্ট ব্যানার, অ্যাডাল্ট ব্যানার খালি থাকলে সাধারণ। প্রতিবার র‍্যান্ডম পিক। */
+    fun bannerHtml(adult: Boolean, wide: Boolean): String {
+        fun pick(pool: List<String>, key: String): String {
+            val p = pool.filter { it.isNotBlank() }
+            if (p.isEmpty()) return ""
+            if (p.size == 1) return p[0]
+            val last = lastBanner[key]
+            val sub = p.filter { it != last }.ifEmpty { p }
+            val pick = sub[rnd.nextInt(sub.size)]
+            lastBanner[key] = pick
+            return pick
+        }
+        val key = if (adult) "a$wide" else "n$wide"
+        if (adult) {
+            val a = pick(if (wide) Config.BANNER_ADULT_320 else Config.BANNER_ADULT_300, key)
+            if (a.isNotBlank()) return a
+        }
+        return pick(if (wide) Config.BANNER_NORMAL_320 else Config.BANNER_NORMAL_300, key)
+    }
+
+    /** ব্যানার WebView-এ অ্যাড কোড বসায় — রিয়েল ইমপ্রেশন; কোড না থাকলে জায়গাটা লুকায় */
     fun applyBanner(view: WebView, html: String) {
         if (html.isBlank()) {
             view.visibility = View.GONE

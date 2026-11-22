@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ☀ ব্রাইটনেস-পিলের সান আইকন -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,8a4,4,0,1,0,0.001,0z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M12,1L12,4M12,20L12,23M1,12L4,12M20,12L23,12M4.2,4.2L6.3,6.3M17.7,17.7L19.8,19.8M19.8,4.2L17.7,6.3M6.3,17.7L4.2,19.8" />
+</vector>
