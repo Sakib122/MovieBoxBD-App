@@ -637,6 +637,12 @@ class DetailActivity : AppCompatActivity() {
         else String.format(Locale.US, "%02d:%02d", mnt, s)
     }
 
+    /** ⏱ মিনি-বারে টানলে যে প্রিভিউ দেখায়: "০১:২৩ / ১:১৫:৪০" */
+    private fun previewText(position: Long): String {
+        val dur = player?.duration?.takeIf { it > 0 } ?: 0L
+        return if (dur > 0) "${fmt(position)} / ${fmt(dur)}" else fmt(position)
+    }
+
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     /** 🎬 ফুলস্ক্রিন প্লেয়ার থেকে ফিরে এলে ওখানকার পজিশন থেকেই মিনি চলবে */
