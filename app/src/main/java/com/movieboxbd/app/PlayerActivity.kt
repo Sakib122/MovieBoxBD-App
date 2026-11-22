@@ -893,6 +893,13 @@ class PlayerActivity : AppCompatActivity() {
                         hideHintSoon()
                     } else if (mode == 0) {
                         endHold()
+                        /* ⬇ নিচে টানলে ইউটিউবের মতো মিনি-প্লেয়ারে নামে —
+                           ডিটেইল-পেজের মিনি-প্লেয়ার এখানকার পজিশন থেকেই চলবে */
+                        val dy = ev.y - downY
+                        if (dy > dp(110) && abs(dy) > abs(ev.x - downX)) {
+                            finish()
+                            return@setOnTouchListener true
+                        }
                         /* সাধারণ ট্যাপ → কন্ট্রোলার আসবে/যাবে */
                         if (controllerVisible) pv.hideController() else pv.showController()
                     } else {

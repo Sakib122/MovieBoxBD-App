@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 🎛 ফুলস্ক্রিন প্লেয়ারের নিচের চিপ-বাটন (Fit / Language / 1x / Auto) —
+        আধুনিক গোল অর্ধ-স্বচ্ছ পিল -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#26FFFFFF" />
+    <corners android:radius="16dp" />
+    <padding
+        android:bottom="7dp"
+        android:left="12dp"
+        android:right="12dp"
+        android:top="7dp" />
+</shape>

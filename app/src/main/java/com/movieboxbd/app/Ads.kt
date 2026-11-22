@@ -13,11 +13,12 @@ import android.webkit.WebViewClient
  * 💰 Adsterra অ্যাড — পুরোটা Config.kt থেকে চলে (v3.1 — বটের সিস্টেম হুবহু)।
  *
  * ▶ ফ্লো (মালিকের নির্দেশ — বটগুলোর pick_random_link এর মতো):
- *   ১. মুভি পোস্টারে ক্লিক → সাথে সাথে র‍্যান্ডম Direct Link ব্রাউজারে
+ *   ১. মুভি পোস্টারে ক্লিক → র‍্যান্ডম Direct Link ব্রাউজারে
  *      (সাধারণ মুভিতে NORMAL_DIRECT_LINKS, ১৮+ মুভিতে ADULT_DIRECT_LINKS)
- *   ২. ▶ প্লে / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম — প্রতিবার আরেকটা র‍্যান্ডম Direct Link
+ *   ২. ▶ প্লে / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম — র‍্যান্ডম Direct Link
  *      (সর্বশেষ দেখানোটা আবার আসে না) + অ্যাপে ৫ সেকেন্ডের কাউন্টডাউন → শেষ হলেই কাজ
- *   ৩. বাইপাস নেই — প্রতিবার অ্যাড, তাই ইমপ্রেশন রিয়েল
+ *   ৩. ⏱ কুলডাউন: একটা অ্যাডের পর AD_COOLDOWN_SECONDS (১ মিনিট) পর্যন্ত কোনো অ্যাড নয় —
+ *      ইউজার যা খুশি করতে পারে; সময় শেষে পরের ক্লিকেই আবার র‍্যান্ডম অ্যাড
  *   ৪. ব্যানার ৪টাই রিয়েল Adsterra কোড, রিয়েল ইমপ্রেশন — ফেক/খালি ব্যানার নেই
  */
 object Ads {
@@ -39,6 +40,24 @@ object Ads {
     /* 🔞 এখন যে মুভির পেজ খোলা সেটা ১৮+ কি না — DetailActivity সেট করে */
     var adultNow: Boolean = false
 
+    /* ⏱ অ্যাড কুলডাউন (মালিকের নির্দেশ — আগের সিস্টেমে ছিল ৩ মিনিট, এখন ১ মিনিট):
+       একটা অ্যাড দেখার পর Config.AD_COOLDOWN_SECONDS পর্যন্ত আর কোনো ডাইরেক্ট-লিংক
+       অ্যাড আসবে না। ইউজার এর ভেতরে যা খুশি করতে পারে — প্লে, এপিসোড চেঞ্জ,
+       ডাউনলোড — সব সরাসরি হবে। সময় শেষ হলে পরের ক্লিকেই র‍্যান্ডম অ্যাড। */
+    private const val K_LAST = "last_ad_ts"
+
+    /** এখন অ্যাড-ফ্রি সময় চলছে কি না (কুলডাউনের ভেতরে = true → অ্যাড ছাড়াই কাজ) */
+    fun adFreeNow(ctx: Context): Boolean {
+        val last = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getLong(K_LAST, 0L)
+        return System.currentTimeMillis() - last < Config.AD_COOLDOWN_SECONDS * 1000L
+    }
+
+    /** অ্যাড দেখানো হলো — কুলডাউন টাইমার এখনই থেকে গোনা হবে */
+    fun markAdShown(ctx: Context) {
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+            .putLong(K_LAST, System.currentTimeMillis()).apply()
+    }
+
     /** গেট শেষ হলে যেটা করতে হবে */
     data class PendingAction(val type: Int, val url: String, val title: String, val extra: String)
 
@@ -52,15 +71,21 @@ object Ads {
         }
     }
 
-    /** 🎬 মুভি পোস্টারে ক্লিক → সাথে সাথে র‍্যান্ডম Direct Link (প্রতিবার) */
+    /** 🎬 মুভি পোস্টারে ক্লিক → সাথে সাথে র‍্যান্ডম Direct Link।
+     *  ⏱ কুলডাউনের ভেতরে থাকলে কোনো অ্যাড নয় — ইউজার সরাসরি মুভিতে ঢুকবে। */
     fun onPosterOpened(ctx: Context, adult: Boolean) {
+        if (adFreeNow(ctx)) return
+        markAdShown(ctx)
         openDirectLink(ctx, adult)
     }
 
     /** ▶ প্লে / ⬇ ডাউনলোড ইত্যাদির আগে অ্যাড-গেট:
-     *  প্রতিবার নতুন র‍্যান্ডম Direct Link খোলে + অ্যাপে AD_WATCH_SECONDS সেকেন্ডের কাউন্টডাউন,
-     *  ফিরে এলে কাউন্টডাউন শেষ করে কাজটা হয়। বাইপাস নেই। */
+     *  ⏱ কুলডাউনের ভেতরে থাকলে অ্যাড ছাড়াই free=true — কাজ সরাসরি হবে।
+     *  নাহলে র‍্যান্ডম Direct Link খোলে + অ্যাপে AD_WATCH_SECONDS সেকেন্ডের কাউন্টডাউন,
+     *  ফিরে এলে কাউন্টডাউন শেষ করে কাজটা হয়। */
     fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = ""): Boolean {
+        if (adFreeNow(activity)) return true   /* ⏱ ১ মিনিটের ভেতরে — আর কোনো অ্যাড নয় */
+        markAdShown(activity)
         activity.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .putLong(K_TS, System.currentTimeMillis())
             .putBoolean(K_PEND, true)

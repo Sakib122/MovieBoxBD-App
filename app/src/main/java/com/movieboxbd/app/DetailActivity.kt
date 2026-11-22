@@ -9,6 +9,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -17,13 +18,17 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -36,6 +41,7 @@ import com.google.android.material.button.MaterialButton
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * ডিটেইল পেজ v4 (v3.0 — রেফারেন্স-অ্যাপের ডিজাইন):
@@ -85,6 +91,30 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var btnMiniPlay: ImageButton
     private lateinit var miniBar: ProgressBar
     private lateinit var miniTime: TextView
+    private lateinit var miniCtrl: View
+
+    /* ✅ দেখা হয়ে যাওয়া এপিসোড — সবুজ মার্ক (মনে থাকে, অ্যাপ বন্ধ করলেও) */
+    private val watchedPrefs by lazy {
+        getSharedPreferences("mbx_watched", Context.MODE_PRIVATE)
+    }
+
+    /* 🎧 ডুয়াল অডিও — ভাষার কোড → ইংরেজি নাম (সিজনের পাশের Audio চিপ) */
+    private var miniAudioPick = -1
+    private val LANG_NAMES = mapOf(
+        "hi" to "Hindi", "hin" to "Hindi",
+        "bn" to "Bangla", "ben" to "Bangla", "bang" to "Bangla",
+        "en" to "English", "eng" to "English",
+        "ta" to "Tamil", "tam" to "Tamil",
+        "te" to "Telugu", "tel" to "Telugu",
+        "ur" to "Urdu", "urd" to "Urdu",
+        "ml" to "Malayalam", "mal" to "Malayalam",
+        "kn" to "Kannada", "kan" to "Kannada",
+        "mr" to "Marathi", "mar" to "Marathi",
+        "pa" to "Punjabi", "pan" to "Punjabi",
+        "ko" to "Korean", "kor" to "Korean",
+        "ja" to "Japanese", "jpn" to "Japanese",
+        "ne" to "Nepali", "nep" to "Nepali"
+    )
 
     private val gateTick = object : Runnable {
         override fun run() {
@@ -114,6 +144,7 @@ class DetailActivity : AppCompatActivity() {
         btnMiniPlay = findViewById(R.id.btnMiniPlay)
         miniBar = findViewById(R.id.miniBar)
         miniTime = findViewById(R.id.miniTime)
+        miniCtrl = findViewById(R.id.miniCtrl)
 
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<TextView>(R.id.dTitle).text = m.title
@@ -172,14 +203,18 @@ class DetailActivity : AppCompatActivity() {
         Ads.applyBanner(findViewById(R.id.adRect), Ads.bannerHtml(BloggerApi.isAdult(m), false))
         Ads.applyBanner(findViewById(R.id.adBanner), Ads.bannerHtml(BloggerApi.isAdult(m), true))
 
-        /* ▶ বড় প্লে-বাটন — প্রথম লিংক মিনি-প্লেয়ারে (অ্যাড-গেটের পরে) */
-        findViewById<View>(R.id.btnMiniPlayBig).setOnClickListener {
-            m.links.firstOrNull { it.streamUrl.isNotBlank() }?.let { playLink(it, true) }
-        }
+        /* ▶ বড় প্লে-বাটন + পোস্টারের যেকোনো জায়গায় ট্যাপ — প্রথম লিংক (অ্যাড-গেটের পরে) */
+        findViewById<View>(R.id.btnMiniPlayBig).setOnClickListener { playFirst() }
+        posterCover.setOnClickListener { playFirst() }
         /* 🎛 মিনি-কন্ট্রোল */
         btnMiniPlay.setOnClickListener { togglePlay() }
         findViewById<View>(R.id.btnMiniMin).setOnClickListener { toggleMiniSize() }
         findViewById<View>(R.id.btnMiniMax).setOnClickListener { openFullscreen() }
+        /* 📱 ভিডিওর উপর ট্যাপ → কন্ট্রোল দেখাও/লুকাও; টানলে ছোট-বড় (ইউটিউব-স্টাইল) */
+        setupMiniPlayerTouch()
+
+        /* 🎧 ডুয়াল অডিও — সিজনের পাশের Audio চিপ */
+        findViewById<View>(R.id.btnAudioDrop).setOnClickListener { showMiniAudioDialog() }
 
         /* 📚 এপিসোড/কোয়ালিটি চিপস + ড্রপ-প্যানেল */
         buildLinkChips(m)
@@ -218,6 +253,8 @@ class DetailActivity : AppCompatActivity() {
         playingName = name
         posterCover.visibility = View.GONE
         pv.visibility = View.VISIBLE
+        /* 🎛 কন্ট্রোল বার এখনই দেখা যাবে — প্লে/পজ, মিনিমাইজ, ফুলস্ক্রিন সব হাতের নাগালে */
+        miniCtrl.visibility = View.VISIBLE
         val p = ExoPlayer.Builder(this, DefaultRenderersFactory(this).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
@@ -237,6 +274,7 @@ class DetailActivity : AppCompatActivity() {
                 if (state == Player.STATE_READY) {
                     if (startPos > 0) p.seekTo(startPos)
                     p.play()
+                    markWatched(name)   /* ✅ চালু হলেই "দেখা হয়েছে" — সবুজ মার্ক */
                 }
                 if (state == Player.STATE_ENDED) autoNext()
             }
@@ -254,6 +292,146 @@ class DetailActivity : AppCompatActivity() {
     private fun togglePlay() {
         val p = player ?: return
         if (p.isPlaying) p.pause() else p.play()
+    }
+
+    /** ▶ প্রথম স্ট্রিম-লিংক চালাও (পোস্টার-ট্যাপ আর বড় প্লে-বাটন — দুটোই এটাই ডাকে) */
+    private fun playFirst() {
+        movie?.links?.firstOrNull { it.streamUrl.isNotBlank() }?.let { playLink(it, true) }
+    }
+
+    /** 🎛 ভিডিওর উপর ট্যাপ → কন্ট্রোল বার দেখাও/লুকাও */
+    private fun toggleMiniCtrl() {
+        miniCtrl.visibility = if (miniCtrl.isVisible) View.GONE else View.VISIBLE
+    }
+
+    /* ── 📱 ইউটিউব-স্টাইল টাচ: ট্যাপ = কন্ট্রোল; ⬇ টানা = ছোট বার; ⬆ টানা = বড়/ফুলস্ক্রিন ── */
+    private fun setupMiniPlayerTouch() {
+        var x0 = 0f
+        var y0 = 0f
+        var moved = false
+        pv.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { x0 = ev.x; y0 = ev.y; moved = false; true }
+                MotionEvent.ACTION_MOVE -> {
+                    if (abs(ev.x - x0) > dp(20) || abs(ev.y - y0) > dp(20)) moved = true
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val dx = ev.x - x0
+                    val dy = ev.y - y0
+                    when {
+                        /* ⬇ নিচে টানলে ছোট বারে নামে (ইউটিউবের মতো) */
+                        dy > dp(90) && abs(dy) > abs(dx) && !minimized -> toggleMiniSize()
+                        /* ⬆ উপরে টানলে ছোট বার বড় হয়; বড় হলে ফুলস্ক্রিনে যায় */
+                        dy < -dp(90) && abs(dy) > abs(dx) ->
+                            if (minimized) toggleMiniSize() else openFullscreen()
+                        /* সাধারণ ট্যাপ → কন্ট্রোল টগল */
+                        !moved -> if (player != null) toggleMiniCtrl()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    /* ── ✅ দেখা হয়ে যাওয়া এপিসোডের সবুজ মার্ক (অ্যাপ বন্ধ করলেও মনে থাকে) ── */
+
+    private fun watchedKey(name: String) = "${movie?.title.orEmpty()}::$name"
+
+    private fun isWatched(name: String) =
+        watchedPrefs.getBoolean(watchedKey(name), false)
+
+    /** এপিসোড চালু হলেই "দেখা হয়েছে" মার্ক — চিপগুলো সাথে সাথে সবুজ হয়ে যায় */
+    private fun markWatched(name: String) {
+        if (name.isBlank() || isWatched(name)) return
+        watchedPrefs.edit().putBoolean(watchedKey(name), true).apply()
+        movie?.let { buildLinkChips(it) }
+        /* প্যানেল খোলা থাকলে গ্রিডও নতুন করে আঁকা হয় */
+        val panel = findViewById<View>(R.id.seasonPanel)
+        if (panel.isVisible) {
+            panel.visibility = View.GONE
+            toggleSeasonPanel()
+        }
+    }
+
+    /* ── 🎧 ডুয়াল অডিও (সিজনের পাশের Audio চিপ — মিনি-প্লেয়ারের অডিও ট্র্যাক বদলায়) ── */
+
+    private fun showMiniAudioDialog() {
+        val p = player
+        if (p == null) {
+            Toast.makeText(this, "আগে মুভি চালু করো — তারপর অডিও বাছা যাবে", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val groups = p.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+        if (groups.isEmpty()) {
+            Toast.makeText(this, "এই ভিডিওতে কোনো অডিও ট্র্যাক নেই", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (groups.size == 1 && miniAudioPick <= 0) {
+            Toast.makeText(this, "এই ভিডিওতে একটাই অডিও ট্র্যাক আছে", Toast.LENGTH_SHORT).show()
+        }
+
+        val items = ArrayList<String>()
+        items.add("অটো (ডিফল্ট)")
+        val dup = HashMap<String, Int>()
+        for ((i, g) in groups.withIndex()) {
+            val f = g.getTrackFormat(0)
+            val base = f.language?.trim()?.lowercase()?.substringBefore('-')
+                ?.let { LANG_NAMES[it] } ?: "অডিও ${i + 1}"
+            val ch = when (f.channelCount) {
+                1 -> "মোনো"; 2 -> "স্টেরিও"; 6 -> "5.1"; 8 -> "7.1"; else -> null
+            }
+            val label = (listOf(base) + listOfNotNull(ch)).joinToString("  •  ")
+            val n = (dup[label] ?: 0) + 1
+            dup[label] = n
+            items.add(if (n > 1) "$label · ট্র্যাক $n" else label)
+        }
+
+        /* সুন্দর কাস্টম লিস্ট — বাছাই করা ট্র্যাকে ● বসবে, সব লেখা স্পষ্ট দেখা যাবে */
+        var checked = miniAudioPick.coerceIn(0, items.size - 1)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+        fun redraw() {
+            box.removeAllViews()
+            items.forEachIndexed { idx, label ->
+                box.addView(TextView(this).apply {
+                    text = if (idx == checked) "●  $label" else "○  $label"
+                    textSize = 16f
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setPadding(48, 30, 32, 30)
+                    if (idx == checked) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setOnClickListener { checked = idx; redraw() }
+                })
+            }
+        }
+        redraw()
+        val wrap = ScrollView(this)
+        wrap.addView(box)
+
+        AlertDialog.Builder(this)
+            .setTitle("অডিও ট্র্যাক বাছো")
+            .setView(wrap)
+            .setPositiveButton("ঠিক আছে") { _, _ ->
+                val tb = p.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                tb.clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                if (checked > 0) {
+                    val g = groups[checked - 1]
+                    if (g.length > 0) tb.addOverride(TrackSelectionOverride(g.mediaTrackGroup, 0))
+                }
+                p.trackSelectionParameters = tb.build()
+                miniAudioPick = checked
+                Toast.makeText(
+                    this,
+                    if (checked == 0) "অডিও: অটো (ডিফল্ট)" else "অডিও: ${items[checked]}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton("বাতিল", null)
+            .show()
     }
 
     /** 🗕 মিনিমাইজ — প্লেয়ার ছোট বারে নামে; আবার ট্যাপ করলে বড় হয় */
@@ -298,6 +476,7 @@ class DetailActivity : AppCompatActivity() {
         player?.release()
         player = null
         pv.player = null
+        if (::miniCtrl.isInitialized) miniCtrl.visibility = View.GONE
     }
 
     /** সময়/প্রগ্রেস/প্লে-আইকন — অর্ধ সেকেন্ড পরপর */
@@ -362,7 +541,11 @@ class DetailActivity : AppCompatActivity() {
             val tv = TextView(this)
             tv.text = label
             tv.setPadding(dp(14), dp(9), dp(14), dp(9))
-            tv.background = getDrawableCompat(R.drawable.bg_chip)
+            /* ✅ দেখা হয়ে গেলে চিপে সবুজ বর্ডার-মার্ক */
+            tv.background = getDrawableCompat(
+                if (link != null && isWatched(link.name)) R.drawable.bg_chip_watched
+                else R.drawable.bg_chip
+            )
             tv.setTextColor(0xFFFFFFFF.toInt())
             tv.textSize = 13f
             val lp = LinearLayout.LayoutParams(
@@ -429,6 +612,10 @@ class DetailActivity : AppCompatActivity() {
                 h.tv.text = if (useNumbers)
                     String.format(Locale.US, "%02d", epRe.find(l.name)?.groupValues?.get(1)?.toInt() ?: 0)
                 else l.name
+                /* ✅ দেখা হয়ে গেলে গ্রিডেও সবুজ মার্ক (ভিউ রিসাইকেল হয়, তাই দুই দিকই সেট করা) */
+                h.tv.background = getDrawableCompat(
+                    if (isWatched(l.name)) R.drawable.bg_chip_watched else R.drawable.bg_chip
+                )
                 h.tv.setOnClickListener {
                     panel.visibility = View.GONE
                     if (l.streamUrl.isNotBlank()) playLink(l, true) else openTelegram(l.tgUrl)
@@ -624,6 +811,11 @@ class DetailActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, pos: Int) {
             val link = links[pos]
             h.name.text = link.name
+            /* ✅ দেখা হয়ে গেলে লিস্টে নাম সবুজ হয়ে যায় */
+            if (isWatched(link.name)) h.name.setTextColor(0xFF22C55E.toInt())
+            else h.name.setTextColor(
+                androidx.core.content.ContextCompat.getColor(this@DetailActivity, R.color.textMain)
+            )
 
             /* 📢 এড খুললে: শিট বন্ধ + মেসেজ। এড-ফ্রি হলে (free=true): শুধু শিট বন্ধ */
             fun beforeAd(free: Boolean) {

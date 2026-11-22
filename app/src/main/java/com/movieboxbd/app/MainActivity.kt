@@ -157,6 +157,13 @@ class MainActivity : AppCompatActivity() {
                 R.id.navMovies -> { currentLabel = null; showPane(paneGrid); load(true) }
                 R.id.navSearch -> showPane(searchPane)
             }
+            /* 🎬 বাছাই করা ট্যাবে ছোট্ট বাউন্স-অ্যানিমেশন — জিভিয়ে ধরার মতো ফিল */
+            nav.findViewById<View>(item.itemId)?.let { v ->
+                v.animate().scaleX(1.25f).scaleY(1.25f).setDuration(110)
+                    .withEndAction {
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(130).start()
+                    }.start()
+            }
             true
         }
         showPane(homePane)

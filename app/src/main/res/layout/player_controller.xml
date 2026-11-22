@@ -5,22 +5,25 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- উপরের বার: ব্যাক + টাইটেল + Help + Setting (রেফারেন্স-প্লেয়ারের মতো) -->
+    <!-- উপরের বার: গোল ব্যাক + টাইটেল + Help + Setting (আধুনিক ইমারসিভ লুক) -->
     <LinearLayout
         android:id="@+id/ctrlTop"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/player_bar"
         android:gravity="center_vertical"
-        android:minHeight="52dp"
+        android:minHeight="56dp"
         android:orientation="horizontal">
 
         <ImageButton
             android:id="@+id/btnPBack"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/player_btn_circle"
             android:contentDescription="back"
+            android:padding="10dp"
+            android:scaleType="fitCenter"
             android:src="@drawable/ic_back"
             app:tint="#FFFFFF" />
 
@@ -28,12 +31,15 @@
             android:id="@+id/pTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:paddingEnd="8dp"
             android:textColor="#FFFFFF"
-            android:textSize="15sp" />
+            android:textSize="15sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/btnHelp"
@@ -51,6 +57,7 @@
             android:id="@+id/btnSetting"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:drawableStart="@drawable/ic_settings"
             android:drawablePadding="4dp"
@@ -66,7 +73,7 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <!-- ⏪10 ▶ ⏩10 — রেফারেন্স-প্লেয়ারের সেন্টার কন্ট্রোল -->
+    <!-- ⏪10 ▶ ⏩10 — গোল অর্ধ-স্বচ্ছ বাটন, চাপলে নিজেই দেখায় কাজ করছে -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -76,15 +83,15 @@
 
         <FrameLayout
             android:id="@+id/btnRew10"
-            android:layout_width="58dp"
-            android:layout_height="58dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/player_btn_circle"
             android:clickable="true"
             android:focusable="true">
 
             <ImageView
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_gravity="center"
                 android:contentDescription="rew10"
                 android:src="@drawable/ic_rew10" />
@@ -103,28 +110,28 @@
         <!-- ⏯ Media3-এর এক-বাটন প্লে/পজ — আইকন ও ক্লিক Media3 নিজেই সামলায় -->
         <ImageButton
             android:id="@id/exo_play_pause"
-            android:layout_width="66dp"
-            android:layout_height="66dp"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
             android:background="@drawable/player_btn_circle"
             android:contentDescription="play"
-            android:padding="16dp"
+            android:padding="18dp"
             android:scaleType="fitCenter"
             android:src="@android:drawable/ic_media_play"
             app:tint="#FFFFFF" />
 
         <FrameLayout
             android:id="@+id/btnFwd10"
-            android:layout_width="58dp"
-            android:layout_height="58dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/player_btn_circle"
             android:clickable="true"
             android:focusable="true">
 
             <ImageView
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_gravity="center"
                 android:contentDescription="fwd10"
                 android:src="@drawable/ic_ffwd10" />
@@ -141,7 +148,7 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- নিচের কন্ট্রোল বার: টাইম-বার + Fit / Language / Speed / Quality -->
+    <!-- নিচের কন্ট্রোল বার: সুন্দর টাইম-বার + Fit / Language / Speed / Quality চিপ-পিল -->
     <LinearLayout
         android:id="@+id/ctrlBottom"
         android:layout_width="match_parent"
@@ -169,7 +176,13 @@
                 android:id="@id/exo_progress"
                 android:layout_width="0dp"
                 android:layout_height="30dp"
-                android:layout_weight="1" />
+                android:layout_weight="1"
+                app:bar_height="4dp"
+                app:buffered_color="#55FFFFFF"
+                app:played_color="#22C55E"
+                app:scrubber_color="#FFFFFF"
+                app:touch_target_height="30dp"
+                app:unplayed_color="#66FFFFFF" />
 
             <TextView
                 android:id="@id/exo_duration"
@@ -185,14 +198,18 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingTop="2dp"
+            android:paddingBottom="6dp">
 
             <ImageButton
                 android:id="@+id/btnPRotate"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/player_btn_circle"
                 android:contentDescription="rotate"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
                 android:src="@drawable/ic_rotate"
                 app:tint="#FFFFFF" />
 
@@ -206,10 +223,10 @@
                 android:id="@+id/btnMScale"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/player_chip"
                 android:drawableStart="@drawable/ic_fit"
                 android:drawablePadding="5dp"
-                android:padding="10dp"
                 android:text="Fit"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
@@ -219,10 +236,10 @@
                 android:id="@+id/btnMAudio"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/player_chip"
                 android:drawableStart="@drawable/ic_lang"
                 android:drawablePadding="5dp"
-                android:padding="10dp"
                 android:text="Language"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
@@ -232,10 +249,10 @@
                 android:id="@+id/btnMSpeed"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/player_chip"
                 android:drawableStart="@drawable/ic_speed"
                 android:drawablePadding="5dp"
-                android:padding="10dp"
                 android:text="1x"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
@@ -245,10 +262,10 @@
                 android:id="@+id/btnMQ"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/player_chip"
                 android:drawableStart="@drawable/ic_video"
                 android:drawablePadding="5dp"
-                android:padding="10dp"
                 android:text="Auto"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />

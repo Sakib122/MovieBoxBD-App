@@ -67,15 +67,18 @@
                     android:textSize="12sp" />
             </FrameLayout>
 
-            <!-- ↩ ব্যাক — প্লেয়ারের উপরে বাঁ কোণায় -->
+            <!-- ↩ ব্যাক — আধুনিক গোল অর্ধ-স্বচ্ছ বাটন (প্লেয়ারের উপরে বাঁ কোণায়) -->
             <ImageButton
                 android:id="@+id/btnBack"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_gravity="top|start"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_margin="10dp"
+                android:background="@drawable/player_btn_circle"
                 android:contentDescription="back"
-                android:src="@android:drawable/ic_menu_revert"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_back"
                 app:tint="#FFFFFF" />
 
             <!-- 🎛 মিনি-কন্ট্রোল: প্লে/পজ + প্রগ্রেস + সময় + মিনিমাইজ + ফুলস্ক্রিন -->
@@ -358,6 +361,21 @@
                         android:paddingHorizontal="14dp"
                         android:paddingVertical="9dp"
                         android:text="Season"
+                        android:textColor="@color/textMain"
+                        android:textSize="13sp" />
+
+                    <!-- 🎧 ডুয়াল অডিও — সিজনের পাশেই Audio চিপ -->
+                    <TextView
+                        android:id="@+id/btnAudioDrop"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_chip"
+                        android:drawableStart="@drawable/ic_lang"
+                        android:drawablePadding="6dp"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="9dp"
+                        android:text="Audio"
                         android:textColor="@color/textMain"
                         android:textSize="13sp" />
 
