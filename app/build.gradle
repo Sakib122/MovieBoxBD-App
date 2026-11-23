@@ -14,13 +14,30 @@ android {
         minSdk 21
         targetSdk 34
         /* 🏷️ ভার্সন — GitHub Actions এ "Run workflow"-তে ইনপুট দিলে সেটাই ব্যবহার হয় */
-        versionCode = (project.findProperty("appVersionCode") ?: "24").toString().toInteger()
+        versionCode = (project.findProperty("appVersionCode") ?: "25").toString().toInteger()
         versionName = (project.findProperty("appVersionName") ?: "4.3").toString()
     }
 
+    /* 🔐 স্থায়ী সাইনিং — আগে প্রতি বিল্ডে এলোমেলো ডিবাগ-কি লাগত, তাই
+        পুরনো ভার্সনের ওপর আপডেট বসালে "App not installed" দেখাত।
+        এবার থেকে সব বিল্ড এই একই কি দিয়ে সাইন হবে — যে-ভার্সন থেকেই
+        সরাসরি আপডেট চলবে। কেস্টোরটা রিপোর keystore/ ফোল্ডারে আছে —
+        কখনো হারাবে না / বদলাবে না! */
+    signingConfigs {
+        moviebox {
+            storeFile rootProject.file("keystore/movieboxbd.keystore")
+            storePassword "MovieBoxBD2026"
+            keyAlias "movieboxbd"
+            keyPassword "MovieBoxBD2026"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.moviebox
+        }
+        debug {
+            signingConfig signingConfigs.moviebox
         }
     }
     /* 📊 আপডেট-চেকার BuildConfig.VERSION_CODE পড়ে — এই সুইচ ছাড়া জেনারেট হয় না */
