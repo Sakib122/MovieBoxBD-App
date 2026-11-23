@@ -13,7 +13,7 @@
         app:controller_layout_id="@layout/player_controller"
         app:resize_mode="fit"
         app:show_buffering="when_playing"
-        app:surface_type="surface_view" />
+        app:surface_type="texture_view" />
 
     <!-- 🎛 জেসচার-পিল: 🔊 ভলিউম / ☀️ ব্রাইটনেস — উপরে-মাঝে (রেফারেন্স-প্লেয়ারের মতো) -->
     <LinearLayout
@@ -66,19 +66,75 @@
         android:textStyle="bold"
         android:visibility="gone" />
 
-    <!-- টেক্সট-হিন্ট (MX-স্টাইল সিক-প্রিভিউ) -->
-    <TextView
-        android:id="@+id/gestureHint"
+    <!-- টেক্সট-হিন্ট (MX-স্টাইল) — (v3.6) রিয়েল আইকন + শুধু অঙ্ক; কোনো ইমোজি বা বাংলা শব্দ নেই -->
+    <LinearLayout
+        android:id="@+id/gestureHintBox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:background="#CC000000"
-        android:gravity="center"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:paddingHorizontal="16dp"
         android:paddingVertical="10dp"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        android:visibility="gone" />
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/hintIcon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="hint"
+            android:visibility="gone"
+            app:tint="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/gestureHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <!-- ⏮⏭ এপিসোড-সুইচের অ্যাড-গেট (v3.6) — প্লে-গেটের মতোই ৫ সেকেন্ডের কাউন্টডাউন -->
+    <LinearLayout
+        android:id="@+id/epGateBox"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6000000"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/epGateMsg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:text="পরের এপিসোডে যাওয়ার আগে অ্যাড দেখো"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/epGateCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="5"
+            android:textColor="#22C55E"
+            android:textSize="44sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEpGateCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="বাতিল"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#33FFFFFF" />
+    </LinearLayout>
 
     <!-- 🔒 লক-রো: বাঁ মাঝে লক-বাটন + "Tap to Lock" (রেফারেন্স-প্লেয়ারের মতো) -->
     <LinearLayout

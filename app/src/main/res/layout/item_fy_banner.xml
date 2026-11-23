@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ⭐ For You গ্রিডের ৬-মুভির পরের বড় ব্যানার-রো (পুরো ৩ কলাম জুড়ে, 320×50 Adsterra) -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <WebView
+        android:id="@+id/fyBannerWeb"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_gravity="center" />
+</FrameLayout>

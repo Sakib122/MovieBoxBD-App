@@ -67,13 +67,55 @@
             android:textSize="11sp" />
     </LinearLayout>
 
-    <!-- মাঝের ফাঁকা জায়গা (ভিডিও দেখা যাবে)
-         (v3.4) ⏪10 ▶ ⏩10 আলাদা বাটন নেই — ডাবল-ট্যাপ জেসচার:
-         বাঁয়ে ডাবল-ট্যাপ = −১০ সেকেন্ড, ডানে = +১০ সেকেন্ড, মাঝে = প্লে/পজ -->
-    <View
+    <!-- মাঝের জায়গা — (v3.5) মাঝখানে ⏪10 ▶/⏸ ⏩10 ফিরে এলো (মালিকের নির্দেশ);
+         ডাবল-ট্যাপ জেসচারও আগের মতোই কাজ করবে। বাটন ছাড়া জায়গা টাচ-পাসথ্রু (জেসচার আটকায় না) -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btnPRew"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:background="@drawable/player_btn_circle"
+                android:contentDescription="rewind 10 seconds"
+                android:padding="13dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_rew10"
+                app:tint="#FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/btnPPlay"
+                android:layout_width="66dp"
+                android:layout_height="66dp"
+                android:layout_marginHorizontal="22dp"
+                android:background="@drawable/bg_play_circle"
+                android:contentDescription="play or pause"
+                android:padding="18dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_pause"
+                app:tint="#FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/btnPFwd"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:background="@drawable/player_btn_circle"
+                android:contentDescription="forward 10 seconds"
+                android:padding="13dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_ffwd10"
+                app:tint="#FFFFFF" />
+        </LinearLayout>
+    </FrameLayout>
 
     <!-- নিচের কন্ট্রোল বার: সুন্দর টাইম-বার + Fit / Language / Speed চিপ-পিল -->
     <LinearLayout
@@ -129,6 +171,30 @@
             android:paddingTop="2dp"
             android:paddingBottom="6dp">
 
+            <!-- ⏮ ⏭ প্রিভিয়াস/নেক্সট — সারির বাঁ দিকে (মালিকের নির্দেশ v3.6); আগের/পরেরটা না থাকলে কোড থেকে লুকানো -->
+            <ImageButton
+                android:id="@+id/btnPrevEp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/player_btn_circle"
+                android:contentDescription="previous episode"
+                android:padding="9dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_prev"
+                app:tint="#FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/btnNextEp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/player_btn_circle"
+                android:contentDescription="next episode"
+                android:padding="9dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_next"
+                app:tint="#FFFFFF" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -172,6 +238,8 @@
                 android:text="1x"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
+
+            <!-- (v3.6) ⏭ নেক্সট বাটন সারির বাঁ দিকে সরে গেছে (উপরে) -->
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

@@ -24,7 +24,7 @@
                 android:visibility="gone"
                 app:resize_mode="fit"
                 app:show_buffering="when_playing"
-                app:surface_type="surface_view"
+                app:surface_type="texture_view"
                 app:use_controller="false" />
 
             <!-- ▶ প্লে শুরুর আগে: পোস্টার + বড় প্লে-বাটন -->
@@ -81,19 +81,35 @@
                 android:src="@drawable/ic_back"
                 app:tint="#FFFFFF" />
 
-            <!-- ⏱ সিক-বার টানার সময় ভিডিওর মাঝে সময়-প্রিভিউ (রেফারেন্স-অ্যাপের মতো) -->
-            <TextView
+            <!-- ⏱ জেসচার/সিক-প্রিভিউ পিল — (v3.6) রিয়েল আইকন + শুধু অঙ্ক; কোনো ইমোজি বা বাংলা শব্দ নেই -->
+            <LinearLayout
                 android:id="@+id/seekPreview"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:background="#CC000000"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
                 android:paddingHorizontal="14dp"
                 android:paddingVertical="8dp"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/miniPillIcon"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="pill"
+                    android:visibility="gone"
+                    app:tint="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/miniPillText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <!-- 🎛 মিনি-কন্ট্রোল: প্লে/পজ + টানা-যায় সিক-বার + সময় + ভলিউম + ⧉ ফ্লোট + ⛶ ফুলস্ক্রিন -->
             <LinearLayout
@@ -160,17 +176,7 @@
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_vol_plus" />
 
-                <ImageButton
-                    android:id="@+id/btnMiniFloat"
-                    android:layout_width="38dp"
-                    android:layout_height="40dp"
-                    android:layout_marginStart="4dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="floating popup"
-                    android:padding="8dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_float" />
-
+                <!-- (v3.5) ⧉ ফ্লোট-বাটন বাদ (মালিকের নির্দেশ) — নিচে টানলেই পপআপে ভাসবে -->
                 <ImageButton
                     android:id="@+id/btnMiniMax"
                     android:layout_width="38dp"
@@ -480,12 +486,15 @@
                     android:textColor="@color/textMain"
                     android:textSize="16sp" />
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/forYouGrid"
+                <!-- (v3.8) RecyclerView বাদ — ScrollView-এর ভেতরে RV অ্যাসিঙ্ক-সেট হলে
+                     এক সারির উচ্চতায় আটকে যেত (তাই "সবসময় ৩টাই" দেখাত!)।
+                     এখন সরাসরি রো-ধরে বসে: এক রোতে ৩টা, প্রতি ২ রো পরে ব্যানার। -->
+                <LinearLayout
+                    android:id="@+id/forYouBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:nestedScrollingEnabled="false" />
+                    android:orientation="vertical" />
 
                 <!-- 💰 300×250 অ্যাড — For You-র নিচে (প্লে করার পরই ইউজারের চোখে For You পড়ে) -->
                 <FrameLayout
