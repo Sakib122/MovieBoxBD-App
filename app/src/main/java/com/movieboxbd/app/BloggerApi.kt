@@ -19,7 +19,7 @@ import java.net.URLDecoder
  */
 object BloggerApi {
 
-    private const val PAGE_SIZE = 20
+    const val PAGE_SIZE = 20   /* (v3.6) public — পেজ-অফসেট হিসাবে DetailActivity-ও ব্যবহার করে */
     private const val MAX_LINKS = 30
 
     /* ── 🔒 ক্রেডিট স্ক্রাবার ──────────────────────────────────────────

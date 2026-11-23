@@ -272,7 +272,7 @@ class MainActivity : AppCompatActivity() {
                 .setTitle("18+ Adult Content")
                 .setMessage("এই কনটেন্ট শুধুমাত্র ১৮ বছর বা তার বেশি বয়সীদের জন্য।\n\nআপনি কি ১৮ বছর পার করেছেন?")
                 .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
-                    Ads.onPosterOpened(this, true) /* 💰 পোস্টার-ক্লিকে সাথে সাথে র‍্যান্ডম অ্যাডাল্ট লিংক */
+                    /* (v3.7) পোস্টার-ক্লিকের অ্যাড বাদ — মালিকের নির্দেশ; সরাসরি মুভিতে */
                     startActivity(DetailActivity.intent(this, m))
                 }
                 .setNegativeButton("না", null)
@@ -280,7 +280,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
             return
         }
-        Ads.onPosterOpened(this, false) /* 💰 পোস্টার-ক্লিকে সাথে সাথে র‍্যান্ডম ডাইরেক্ট লিংক */
+        /* (v3.7) পোস্টার-ক্লিকের অ্যাড বাদ — বারবার অ্যাড এসে ইউজার বিরক্ত হত; সরাসরি মুভিতে */
         startActivity(DetailActivity.intent(this, m))
     }
 
@@ -311,8 +311,15 @@ class MainActivity : AppCompatActivity() {
                 val tHo = Thread { horror = labelFeed("Horror") }
                 val tKo = Thread { korean = labelFeed("Korean") }
                 val tAn = Thread { anime = labelFeed("Anime") }
-                tEn.start(); tHo.start(); tKo.start(); tAn.start()
-                tEn.join(8000); tHo.join(8000); tKo.join(8000); tAn.join(8000); tWs.join(8000)
+                /* 🎬 (v4.3) বাংলা আর বাংলা ডাব — নিজেদের লেবেল-ফিড থেকে আনি:
+                   সর্বশেষ ৪০ পোস্টে না থাকলেও হোমে দুটো সেকশনই সবসময় দেখা যাবে */
+                var banglaFeed: List<MovieItem> = emptyList()
+                var dubFeed: List<MovieItem> = emptyList()
+                val tBl = Thread { banglaFeed = labelFeed(Config.BANGLA_MAIN_LABEL) }
+                val tDb = Thread { dubFeed = labelFeed(Config.BANGLA_DUB_QUERY) }
+                tEn.start(); tHo.start(); tKo.start(); tAn.start(); tBl.start(); tDb.start()
+                tEn.join(8000); tHo.join(8000); tKo.join(8000); tAn.join(8000)
+                tBl.join(8000); tDb.join(8000); tWs.join(8000)
 
                 val heroes = all.filter { !BloggerApi.isAdult(it) }.take(4)   /* 🎬 হিরো স্লাইডার — সর্বশেষ ৪টা (এডাল্ট বাদ) */
 
@@ -320,17 +327,23 @@ class MainActivity : AppCompatActivity() {
                              else all.filter { BloggerApi.isWebSeries(it.title, it.labels) }
                 val hindi = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
                         it.labels.any { l -> l.equals("Hindi", true) || l.equals("Hindi Dubbed", true) } }
-                val bangla = all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
-                        it.labels.any { l -> Config.BANGLA_LABELS.any { b -> l.equals(b, true) } } }
-                val dub = all.filter { it.labels.any { l -> Config.BANGLA_DUB_LABELS.any { b -> l.equals(b, true) } } }
+                /* 🎬 (v4.3) লেবেল-ফিড + সর্বশেষ ৪০ — দুটো মিলিয়ে; একই মুভি দুইবার আসবে না */
+                val bangla = (banglaFeed.filter { !BloggerApi.isWebSeries(it.title, it.labels) } +
+                        all.filter { !BloggerApi.isWebSeries(it.title, it.labels) &&
+                        it.labels.any { l -> Config.BANGLA_LABELS.any { b -> l.equals(b, true) } } })
+                    .distinctBy { it.permalink }
+                val dub = (dubFeed + all.filter { it.labels.any { l ->
+                        Config.BANGLA_DUB_LABELS.any { b -> l.equals(b, true) } } })
+                    .distinctBy { it.permalink }
 
-                /* 🏷️ সেকশন-হেডার ইংরেজিতে (মালিকের নির্দেশ) */
+                /* 🏷️ (v4.3) বাংলা দুই সেকশন বাংলায়, আগের ক্রমে — বাংলা মুভি আগে, তারপর বাংলা ডাব;
+                   বাকি হেডার ইংরেজিতেই */
                 val sections = ArrayList<Pair<String, List<MovieItem>>>()
                 sections.add("Recently Uploaded" to all.take(10))
                 if (series.isNotEmpty()) sections.add("Web Series" to series)   /* যত ওয়েব সিরিজ আছে ততগুলো */
-                if (dub.isNotEmpty()) sections.add("Bangla Dub" to dub.take(10))
+                if (bangla.isNotEmpty()) sections.add("🎬 বাংলা মুভি" to bangla.take(10))
+                if (dub.isNotEmpty()) sections.add("🎙️ বাংলা ডাব" to dub.take(10))
                 if (hindi.isNotEmpty()) sections.add("Hindi Movies" to hindi.take(10))
-                if (bangla.isNotEmpty()) sections.add("Bangla Movies" to bangla.take(10))
                 if (english.isNotEmpty()) sections.add("English Movies" to english.take(10))
                 if (horror.isNotEmpty()) sections.add("Horror Movies" to horror.take(10))
                 if (korean.isNotEmpty()) sections.add("Korean Movies" to korean.take(10))
@@ -386,16 +399,21 @@ class MainActivity : AppCompatActivity() {
             for (l in Config.CATEGORY_LABELS) {
                 if (!names.contains(l)) names.add(l)
             }
+            /* 🎙️ (v4.3) বাংলা ডাব চিপ ফিরিয়ে আনা — "Bangla" চিপের ঠিক আগে */
+            val bd = names.indexOfFirst { it.equals("Bangla", true) }
+            if (bd >= 0) names.add(bd, Config.BANGLA_DUB_TAB_NAME) else names.add(Config.BANGLA_DUB_TAB_NAME)
         }
         for (name in names) {
             val chip = Chip(this)
-            chip.text = name
+            /* 🎬 (v4.3) সরাসরি বাংলা চিপটা বাংলায় দেখাবে */
+            chip.text = if (name.equals("Bangla", true)) Config.BANGLA_TAB_NAME else name
             chip.isCheckable = true
             val isAll = name == "All" || name == "Web Series"
             /* ট্যাবের দেখার নাম → ব্লগের আসল লেবেল (Bangla → Bengali) */
             val query = when {
                 isAll -> if (tab == R.id.navSeries) "Web Series" else null
-                name.equals("Bangla", true) -> Config.BANGLA_MAIN_LABEL
+                name == Config.BANGLA_DUB_TAB_NAME -> Config.BANGLA_DUB_QUERY   /* 🎙️ বাংলা ডাব → Bengali লেবেল */
+                name.equals("Bangla", true) -> Config.BANGLA_MAIN_LABEL         /* 🎬 বাংলা (সরাসরি) → Bangla লেবেল */
                 else -> name
             }
             chip.isChecked = when {

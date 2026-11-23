@@ -72,11 +72,38 @@ class DetailActivity : AppCompatActivity() {
         /* ⭐ For You ক্যাশ — প্রতি ডিটেইল-ওপেনে নেটওয়ার্ক যেন না লাগে (১০ মিনিট ফ্রেশ) */
         private var fyCache: List<MovieItem> = emptyList()
         private var fyTs: Long = 0
+
+        /** ⭐ For You-তে এই সংখ্যক র‍্যান্ডম মুভি (মালিকের নির্দেশ v3.7 — ৩০টা) */
+        const val FY_COUNT = 30
+
+        /* 🎬 মিনি↔ফুলস্ক্রিন পজিশন-হ্যান্ডওফ (v3.5) — স্ট্যাটিকে রাখায় অ্যাক্টিভিটি
+           রিক্রিয়েট হলেও পজিশন হারায় না; মুভির নাম দিয়ে স্কোপড, ফিরে এসে একবারই কনজিউম হয় */
+        var hfMovie = ""
+        var hfUrl = ""
+        var hfName = ""
+        var hfPos = -1L
+
+        /* 🎬 (v3.7) সিমলেস হ্যান্ডওফ — মিনির চলমান ExoPlayer ফুলস্ক্রিনে হস্তান্তর/ফেরত;
+           একই প্লেয়ার, তাই ভিডিও চলতেই থাকে — নতুন করে লোড/বাফার হয় না */
+        var hfPlayer: ExoPlayer? = null
+
+        /* এই অ্যাক্টিভিটি জীবিত কি না (ফুলস্ক্রিন প্লেয়ার ফেরত দেওয়ার সময় দেখা হয়) */
+        private var instance: DetailActivity? = null
+        fun alive(): Boolean = instance?.let { !it.isFinishing && !it.isDestroyed } == true
     }
 
     private var series = false
     private var movie: MovieItem? = null
     private val ui = Handler(Looper.getMainLooper())
+    /* 📊 (v4.0) মিনি-প্লেয়ারের হার্টবিট — কোন ফোন কোন মুভি/EP দেখছে প্যানেলে লাইভ যাবে */
+    private val watchTick = object : Runnable {
+        override fun run() {
+            try {
+                if (player?.isPlaying == true) Stats.watch(this@DetailActivity, playingName)
+            } catch (_: Exception) {}
+            ui.postDelayed(this, 45000L)
+        }
+    }
     private var gateCount: TextView? = null
     private var gateLeft = 0
     private var sheet: BottomSheetDialog? = null
@@ -85,6 +112,7 @@ class DetailActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var playingUrl = ""
     private var playingName = ""
+    private var miniFailShown = false   /* 🎨 (v4.1) একবার ফেইলে একবারই কার্ড — বারবার স্প্যাম নয় */
     private var miniRequested = false   /* গেট শেষ হলে মিনি-প্লেয়ারে চালাতে হবে */
 
     private lateinit var playerBox: FrameLayout
@@ -94,10 +122,16 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var miniBar: DefaultTimeBar
     private lateinit var miniTime: TextView
     private lateinit var miniCtrl: View
-    private lateinit var seekPreview: TextView
+    private lateinit var seekPreview: View
+    /* (v3.6) মিনি-পিল = রিয়েল আইকন + শুধু অঙ্ক — কোনো ইমোজি বা বাংলা শব্দ নেই */
+    private lateinit var miniPillIcon: ImageView
+    private lateinit var miniPillText: TextView
 
     /* সিক-বার টানার সময় tick যেন প্রিভিউর সাথে না লড়ে */
     private var scrubbing = false
+
+    /* 🎬 (v3.7) মিনির প্লেয়ার এখন ফুলস্ক্রিনের হাতে — মিনি কিছু নিয়ন্ত্রণ করবে না */
+    private var handedOut = false
 
     /* 🎧 ডুয়াল অডিও — ভাষার কোড → ইংরেজি নাম (সিজনের পাশের Audio চিপ) */
     private var miniAudioPick = -1
@@ -138,6 +172,7 @@ class DetailActivity : AppCompatActivity() {
         Ads.adultNow = BloggerApi.isAdult(m)   /* 🔞 ১৮+ মুভি হলে গেটের অ্যাডও ১৮+ */
         series = BloggerApi.isWebSeries(m.title, m.labels)
         Stats.view(this, m.title) /* 📊 অ্যাডমিন প্যানেলে এই মুভির ইম্প্রেশন */
+        ui.postDelayed(watchTick, 15000L)   /* 📊 (v4.0) হার্টবিট-লুপ চালু */
 
         playerBox = findViewById(R.id.playerBox)
         pv = findViewById(R.id.playerView)
@@ -147,6 +182,8 @@ class DetailActivity : AppCompatActivity() {
         miniTime = findViewById(R.id.miniTime)
         miniCtrl = findViewById(R.id.miniCtrl)
         seekPreview = findViewById(R.id.seekPreview)
+        miniPillIcon = findViewById(R.id.miniPillIcon)
+        miniPillText = findViewById(R.id.miniPillText)
 
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<TextView>(R.id.dTitle).text = m.title
@@ -215,8 +252,7 @@ class DetailActivity : AppCompatActivity() {
         /* 🔊 ভলিউম আপ/ডাউন — সরাসরি ফোনের মিডিয়া-ভলিউম */
         findViewById<View>(R.id.btnVolDown).setOnClickListener { stepVol(-1) }
         findViewById<View>(R.id.btnVolUp).setOnClickListener { stepVol(+1) }
-        /* 🪟 ⧉ ফ্লোট — ভিডিও ভাসমান পপআপ হয়ে যাবে (টানা যায়, বড় করা যায়, বন্ধ করা যায়) */
-        findViewById<View>(R.id.btnMiniFloat).setOnClickListener { floatToPopup() }
+        /* (v3.5) ⧉ ফ্লোট-বাটন বাদ — ভিডিওর উপর নিচে টানলেই পপআপে ভাসবে */
         /* ⛶ ফুলস্ক্রিন */
         findViewById<View>(R.id.btnMiniMax).setOnClickListener { openFullscreen() }
         /* 📱 ভিডিওর উপর ট্যাপ → কন্ট্রোল দেখাও/লুকাও; নিচে টানলে পপআপ, উপরে টানলে ফুলস্ক্রিন */
@@ -226,11 +262,11 @@ class DetailActivity : AppCompatActivity() {
             override fun onScrubStart(bar: TimeBar, position: Long) {
                 scrubbing = true
                 seekPreview.visibility = View.VISIBLE
-                seekPreview.text = previewText(position)
+                miniPillText.text = previewText(position)
             }
 
             override fun onScrubMove(bar: TimeBar, position: Long) {
-                seekPreview.text = previewText(position)
+                miniPillText.text = previewText(position)
             }
 
             override fun onScrubStop(bar: TimeBar, position: Long, canceled: Boolean) {
@@ -279,6 +315,7 @@ class DetailActivity : AppCompatActivity() {
         releaseMini()
         playingUrl = url
         playingName = name
+        miniFailShown = false
         /* ✅ এখন যেটা প্লে হচ্ছে শুধু সেটাই সবুজ-মার্ক পাবে */
         refreshPlayingMark()
         posterCover.visibility = View.GONE
@@ -311,6 +348,11 @@ class DetailActivity : AppCompatActivity() {
 
             override fun onPlayerError(error: PlaybackException) {
                 Toast.makeText(this@DetailActivity, "লোড হচ্ছে না — আবার চেষ্টা করো বা ডাউনলোড করো", Toast.LENGTH_LONG).show()
+                /* 🎨 (v4.1) লোডই না হলে MX/VLC রাস্তা দেখাও — এক লিংকে একবারই */
+                if (!miniFailShown) {
+                    miniFailShown = true
+                    showMiniFallback()
+                }
             }
         })
         p.prepare()
@@ -326,7 +368,14 @@ class DetailActivity : AppCompatActivity() {
 
     /** ▶ প্রথম স্ট্রিম-লিংক চালাও (পোস্টার-ট্যাপ আর বড় প্লে-বাটন — দুটোই এটাই ডাকে) */
     private fun playFirst() {
-        movie?.links?.firstOrNull { it.streamUrl.isNotBlank() }?.let { playLink(it, true) }
+        /* ⭐ (v3.9 মালিকের নির্দেশ) ফিডে নতুন লিংক আগে থাকে — তাই raw-first মানে
+           বড় EP (134)/1080p আগে চলত! এখন ছোট→বড় সর্ট করা লিস্টের প্রথমটাই:
+           সিরিজে সবচেয়ে ছোট EP (129), সিনেমায় সবচেয়ে ছোট কোয়ালিটি (480p) আগে
+           প্লে হবে; বাড়াতে চাইলে ইউজার নিজে পরের কোয়ালিটি/EP বাছবে — সার্ভারও বাঁচবে। */
+        movie?.let { m2 ->
+            sortedEpLinks(m2.links.filter { it.streamUrl.isNotBlank() })
+                .firstOrNull()?.let { playLink(it, true) }
+        }
     }
 
     /** 🎛 ভিডিওর উপর ট্যাপ → কন্ট্রোল বার দেখাও/লুকাও */
@@ -344,15 +393,25 @@ class DetailActivity : AppCompatActivity() {
         val slop = 24f
         var downX = 0f
         var downY = 0f
-        var mode = 0            /* 0=none 1=volume 2=brightness 9=horizontal-নাহ */
+        /* ফুলস্ক্রিনের হুবহু নাম্বারিং: 0=none 1=টেনে-সিক 2=ব্রাইটনেস 3=ভলিউম (v3.5) */
+        var mode = 0
         var volBase = 0
         var brightBase = 0f
+        var seekBase = 0L
+        var seekTarget = 0L
+        var seekDur = 0L
         var lastTapAt = 0L
 
         val hidePill = Runnable { seekPreview.visibility = View.GONE }
-        fun pill(text: String) {
+        /* (v3.6) পিল = রিয়েল আইকন + শুধু অঙ্ক — ইমোজি বা "সেকেন্ড" শব্দ নেই; লেখা ফাঁকা হলে শুধু আইকন */
+        fun pill(icon: Int?, text: String) {
             ui.removeCallbacks(hidePill)
-            seekPreview.text = text
+            if (icon != null) {
+                miniPillIcon.setImageResource(icon)
+                miniPillIcon.visibility = View.VISIBLE
+            } else miniPillIcon.visibility = View.GONE
+            miniPillText.text = text
+            miniPillText.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
             seekPreview.visibility = View.VISIBLE
             ui.postDelayed(hidePill, 800)
         }
@@ -365,6 +424,9 @@ class DetailActivity : AppCompatActivity() {
                     downX = ev.x; downY = ev.y; mode = 0
                     volBase = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
                     brightBase = window.attributes.screenBrightness.takeIf { it > 0 } ?: 0.5f
+                    seekBase = player?.currentPosition ?: 0L
+                    seekTarget = seekBase
+                    seekDur = player?.duration?.takeIf { it > 0 } ?: 0L
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -372,15 +434,25 @@ class DetailActivity : AppCompatActivity() {
                     val dy = ev.y - downY
                     if (mode == 0 && (abs(dx) > slop || abs(dy) > slop)) {
                         ui.removeCallbacks(pendingTap)   /* টানা শুরু — ট্যাপ বাতিল */
-                        mode = if (abs(dx) > slop && abs(dx) > abs(dy)) 9
-                        else if (downX < pv.width / 2f) 2 else 1
+                        /* ফুলস্ক্রিনের মতোই: আড়াআড়ি টানলে সিক, বাঁ পাশে উপর-নিচে ব্রাইটনেস, ডান পাশে ভলিউম */
+                        mode = if (abs(dx) > slop && abs(dx) > abs(dy)) 1
+                        else if (downX < pv.width / 2f) 2 else 3
                     }
                     when (mode) {
-                        /* ডান পাশে উপর-নিচ → 🔊 ভলিউম */
+                        /* 🎬 আড়াআড়ি টানা → MX-এর মতো সিক: টানতে থাকলে শুধু সময়+অঙ্ক (আইকনে দিক), ছাড় দিলে একবার সিক */
                         1 -> {
-                            val nv = (volBase + (-dy / 30f)).toInt().coerceIn(0, maxVol)
-                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, nv, 0)
-                            pill("🔊  ${nv * 100 / maxVol}%")
+                            val span = pv.width.toFloat().takeIf { it > 0 } ?: 1080f
+                            val deltaMs = (dx / span * 120_000f).toLong()
+                            seekTarget = if (seekDur > 0)
+                                (seekBase + deltaMs).coerceIn(0L, seekDur)
+                            else (seekBase + deltaMs).coerceAtLeast(0L)
+                            val diff = seekTarget - seekBase
+                            val extra = if (seekDur > 0) " / ${fmt(seekDur)}" else ""
+                            val sign = if (diff >= 0) "+" else "-"
+                            pill(
+                                if (diff >= 0) R.drawable.ic_ffwd10 else R.drawable.ic_rew10,
+                                "${fmt(seekTarget)}$extra  ${sign}${abs(diff) / 1000}"
+                            )
                         }
                         /* বাঁ পাশে উপর-নিচ → ☀ ব্রাইটনেস */
                         2 -> {
@@ -388,7 +460,13 @@ class DetailActivity : AppCompatActivity() {
                             val attr = window.attributes
                             attr.screenBrightness = f
                             window.attributes = attr
-                            pill("☀  ${(f * 100).toInt()}%")
+                            pill(R.drawable.ic_bright, "${(f * 100).toInt()}%")
+                        }
+                        /* ডান পাশে উপর-নিচ → 🔊 ভলিউম */
+                        3 -> {
+                            val nv = (volBase + (-dy / 30f)).toInt().coerceIn(0, maxVol)
+                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, nv, 0)
+                            pill(R.drawable.ic_vol, "${nv * 100 / maxVol}%")
                         }
                     }
                     true
@@ -420,15 +498,19 @@ class DetailActivity : AppCompatActivity() {
                                         when {
                                             ev.x < w / 3f -> {
                                                 p.seekTo((p.currentPosition - 10_000).coerceAtLeast(0))
-                                                pill("⏪ ১০ সেকেন্ড")
+                                                pill(R.drawable.ic_rew10, "10")
                                             }
                                             ev.x > w * 2f / 3f -> {
                                                 p.seekTo(p.currentPosition + 10_000)
-                                                pill("১০ সেকেন্ড ⏩")
+                                                pill(R.drawable.ic_ffwd10, "10")
                                             }
                                             else -> {
                                                 if (p.isPlaying) p.pause() else p.play()
-                                                pill(if (p.isPlaying) "▶  চলছে" else "⏸  থামলো")
+                                                /* (v3.6) শুধু প্লে/পজ আইকন — কোনো লেখা নেই */
+                                                pill(
+                                                    if (p.isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
+                                                    ""
+                                                )
                                             }
                                         }
                                     }
@@ -440,6 +522,8 @@ class DetailActivity : AppCompatActivity() {
                             }
                         }
                     } else {
+                        /* টেনে-সিক ছাড় দিলে একবার সেখানেই যাও (ফুলস্ক্রিনের মতো) */
+                        if (mode == 1) player?.seekTo(seekTarget)
                         seekPreview.visibility = View.GONE
                     }
                     true
@@ -576,25 +660,46 @@ class DetailActivity : AppCompatActivity() {
         Toast.makeText(this, "পপআপে চলছে — টেনে সরাও, ⛶ দিলে বড়, ✕ দিলে বন্ধ", Toast.LENGTH_SHORT).show()
     }
 
-    /** ⛶ ফুলস্ক্রিন প্লেয়ার — এখনকার পজিশন সেখানে বসে (ফিরে এলে আবার মিনিতে) */
+    /** ⛶ ফুলস্ক্রিন প্লেয়ার — এখনকার পজিশন সেখানে বসে (ফিরে এলে আবার মিনিতে);
+     *  সাথে সাজানো এপিসোড-লিস্টও যায় — ফুলস্ক্রিনেই ⏭ নেক্সট বাটন কাজ করে (v3.5) */
     private fun openFullscreen() {
         val p = player ?: return
-        val pos = p.currentPosition
-        p.pause()
+        /* 🎬 (v3.7 মালিকের নির্দেশ) সিমলেস হ্যান্ডওফ — মিনির চলমান ExoPlayer-ই ফুলস্ক্রিনে
+           চলে যায়: ভিডিও চলতেই থাকে, নতুন করে লোড/বাফার হয় না, পজিশন হাতবদলে যায় না।
+           ফুলস্ক্রিন থেকে ব্যাক করলে সেইম প্লেয়ার আবার মিনিতে বসে যায় — তখনও লোড নেই। */
+        hfMovie = movie?.title ?: ""
+        hfUrl = playingUrl
+        hfName = playingName
+        hfPos = -1L            /* সিমলেস পথে সিক লাগে না — চলমান পজিশনই থাকবে */
+        handedOut = true
+        hfPlayer = p
+        pv.player = null       /* শুধু ভিউ খুলে নেই — প্লেয়ার প্লে করতেই থাকে */
         try {
+            /* 📚 এপিসোড-ক্রম — ছোট→বড় (পুরো সিজন শেষে) */
+            val sorted = sortedEpLinks(movie?.links?.filter { it.streamUrl.isNotBlank() } ?: emptyList())
             val i = Intent(this, PlayerActivity::class.java)
             i.putExtra("url", playingUrl)
             i.putExtra("title", playingName)
             i.putExtra("movie_name", movie?.title ?: "")
-            i.putExtra("resume_pos", pos)
+            i.putExtra("resume_pos", -1L)
+            i.putExtra("adopt", true)
+            i.putStringArrayListExtra("urls", ArrayList(sorted.map { it.streamUrl }))
+            i.putStringArrayListExtra("names", ArrayList(sorted.map { it.name }))
+            i.putExtra("idx", sorted.indexOfFirst { it.streamUrl == playingUrl })
             startActivity(i)
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            /* ফুলস্ক্রিন খুলতে না পারলে প্লেয়ার মিনিতেই ফিরে বসে */
+            handedOut = false
+            hfPlayer = null
+            pv.player = p
+        }
     }
 
     /** এক এপিসোড শেষ → পরেরটা অটো-প্লে (গেট ছাড়া) */
     private fun autoNext() {
+        if (handedOut) return   /* 🎬 প্লেয়ার ফুলস্ক্রিনের হাতে — মিনি নিজে থেকে কিছু বদলাবে না */
         val links = movie?.links ?: return
-        val playable = links.filter { it.streamUrl.isNotBlank() }
+        val playable = sortedEpLinks(links.filter { it.streamUrl.isNotBlank() })
         if (playable.size < 2) return
         val idx = playable.indexOfFirst { it.streamUrl == playingUrl }
         val next = playable.getOrNull(idx + 1) ?: return
@@ -651,19 +756,36 @@ class DetailActivity : AppCompatActivity() {
         /* 🪟 ভাসমান পপআপ থাকলে এই পেজে এসে বসবে */
         FloatPlayer.reattach(this)
 
-        if (playingUrl.isNotBlank() && PlayerActivity.handoffUrl == playingUrl &&
-            PlayerActivity.handoffPos >= 0
-        ) {
-            if (player != null) {
-                player?.seekTo(PlayerActivity.handoffPos)
+        /* 🎬 (v3.7) ফুলস্ক্রিন থেকে সেইম প্লেয়ার ফিরে এলে — কোনো রিলোড/সিক নেই,
+           যেখানে চলছিল সেখান থেকেই মিনিতে চলতে থাকবে */
+        if (hfPlayer != null) {
+            player = hfPlayer
+            hfPlayer = null
+            handedOut = false
+            pv.player = player
+            if (hfUrl.isNotBlank()) playingUrl = hfUrl
+            if (hfName.isNotBlank()) playingName = hfName
+            hfPos = -1   /* চলমান পজিশনই থাকবে — সিক দরকার নেই */
+            /* 🖼 নতুন TextureView-এ ছবি গ্যারান্টি — ডিকোডার সাথে সাথে রেন্ডার শুরু করে */
+            player?.let { it.seekTo(it.currentPosition) }
+            /* ⭐ (v3.9) ফুলস্ক্রিনে এপিসোড বদলে ফিরলে চিপের সবুজ মার্ক নতুন EP-তে
+               সরে যাবে — আগে 129-এই থেমে যেত, অথচ প্লে হচ্ছিল 133! */
+            refreshPlayingMark()
+        }
+
+        /* 🎬 ফুলস্ক্রিন থেকে ফিরে এলে ওখানকার পজিশন থেকেই মিনি চলবে (v3.5 —
+           মুভি-স্কোপড স্ট্যাটিক হ্যান্ডওফ: অ্যাক্টিভিটি রিক্রিয়েট হলেও পজিশন হারায় না) */
+        if (movie?.title == hfMovie && hfUrl.isNotBlank() && hfPos >= 0) {
+            if (player != null && playingUrl == hfUrl) {
+                player?.seekTo(hfPos)
                 player?.play()
             } else {
-                /* 🪟 পপআপ থেকে ⛶ দিয়ে ফুলস্ক্রিনে গিয়ে ফিরলে মিনি নতুন করে চালু */
-                startMini(PlayerActivity.handoffUrl, playingName, PlayerActivity.handoffPos)
+                /* মিনি-প্লেয়ার বন্ধ হয়ে গিয়ে থাকলে ওই এপিসোডই ওই পজিশনে নতুন করে চলবে */
+                playingName = hfName
+                startMini(hfUrl, hfName, hfPos)
             }
         }
-        PlayerActivity.handoffUrl = ""
-        PlayerActivity.handoffPos = -1
+        hfPos = -1   /* হ্যান্ডওফ একবারই কাজ করবে */
 
         /* ⏳ অ্যাড-গেট: ফিরে এলে বাকি সেকেন্ড দেখিয়ে কাজটা করা */
         val remain = Ads.pendingRemaining(this)
@@ -673,17 +795,35 @@ class DetailActivity : AppCompatActivity() {
 
     /* ── 📚 এপিসোড/কোয়ালিটি চিপস + ড্রপ-প্যানেল ───────────────── */
 
+    /* 📚 (v3.7 মালিকের নির্দেশ) এপিসোড ছোট→বড় ক্রমে (129, 130, 131…); EP-নম্বর নেই
+       এমন লিংক (পুরো সিজন/ফুল মুভি) একদম শেষে থাকবে। আগে "সব লিংকেই EP নম্বর থাকতে
+       হবে" শর্ত ছিল — পুরো সিজনের মতো একটা লিংক থাকলেই সর্ট বাদ পড়ে ফিডের উল্টা
+       ক্রম (134, 133…) দেখাত — ওই বাগই এখন ঠিক। */
+    private fun sortedEpLinks(links: List<MediaLink>): List<MediaLink> {
+        if (links.size <= 1) return links
+        val epRe = Regex("(?i)EP\\s*(\\d+)")
+        val qRe = Regex("(?i)(\\d{3,4})\\s*p")
+        val numbered = links.filter { epRe.containsMatchIn(it.name) }
+        val quality = links.filter { qRe.containsMatchIn(it.name) }
+        return when {
+            /* 📚 এপিসোড: ছোট→বড় (129, 130, 131…); নম্বর-ছাড়া (পুরো সিজন) শেষে */
+            numbered.size >= 2 ->
+                numbered.sortedBy { epRe.find(it.name)!!.groupValues[1].toInt() } +
+                    links.filter { !epRe.containsMatchIn(it.name) }
+            /* 🎬 কোয়ালিটি: ছোট→বড় (480p → 720p → 1080p) — এপিসোডের মতোই (v3.8) */
+            quality.size >= 2 ->
+                quality.sortedBy { qRe.find(it.name)!!.groupValues[1].toInt() } +
+                    links.filter { !qRe.containsMatchIn(it.name) }
+            else -> links
+        }
+    }
+
     /** All + এপিসোড (সিরিজ: 01 02 03…) / কোয়ালিটি (মুভি: 720p WEB-DL…) চিপস */
     private fun buildLinkChips(m: MovieItem) {
         val wrap = findViewById<LinearLayout>(R.id.linkChips)
         wrap.removeAllViews()
         val links = m.links
-        val epRe = Regex("(?i)EP\\s*(\\d+)")
-        val numbered = links.mapNotNull { l -> epRe.find(l.name)?.groupValues?.get(1)?.toInt() }
-        val sorted: List<MediaLink> =
-            if (series && links.size > 1 && numbered.size == links.size)
-                links.sortedBy { epRe.find(it.name)?.groupValues?.get(1)?.toInt() ?: 0 }
-            else links
+        val sorted = sortedEpLinks(links)
 
         fun addChip(label: String, link: MediaLink?) {
             val tv = TextView(this)
@@ -697,6 +837,16 @@ class DetailActivity : AppCompatActivity() {
             if (link != null && isNowPlaying(link.name)) {
                 tv.setTextColor(0xFF22C55E.toInt())
                 tv.setTypeface(tv.typeface, android.graphics.Typeface.BOLD)
+                /* ⭐ (v3.9) সবুজ-মার্ক চিপ স্ক্রিনের বাইরে থাকলে স্ক্রল করে এনে দেখাও */
+                tv.post {
+                    var p: android.view.ViewParent? = wrap.parent
+                    while (p != null && p !is android.widget.HorizontalScrollView) p = p.parent
+                    (p as? android.widget.HorizontalScrollView)?.smoothScrollTo(
+                        maxOf(0, tv.left - dp(70)), 0
+                    )
+                    (p as? android.widget.ScrollView)?.viewTreeObserver
+                        ?.addOnScrollChangedListener { checkVisibleBanners() }
+                }
             } else tv.setTextColor(0xFFFFFFFF.toInt())
             tv.textSize = 13f
             val lp = LinearLayout.LayoutParams(
@@ -705,7 +855,7 @@ class DetailActivity : AppCompatActivity() {
             lp.marginEnd = dp(8)
             tv.layoutParams = lp
             tv.setOnClickListener {
-                if (link == null) showAllLinks(links)
+                if (link == null) showAllLinks(sorted)
                 else {
                     findViewById<View>(R.id.seasonPanel).visibility = View.GONE
                     playLink(link, true)
@@ -714,14 +864,8 @@ class DetailActivity : AppCompatActivity() {
             wrap.addView(tv)
         }
         addChip("All", null)
-        if (series && links.size > 1 && numbered.size == links.size) {
-            for (l in sorted) {
-                val n = epRe.find(l.name)?.groupValues?.get(1)?.toInt() ?: 0
-                addChip(String.format(Locale.US, "%02d", n), l)
-            }
-        } else {
-            for (l in links) addChip(l.name, l)
-        }
+        /* 📚 (v3.7) ছোট→বড় ক্রমে; সাইটের আসল নামই লেবেল (EP 129, EP 130, … পুরো সিজন শেষে) */
+        for (l in sorted) addChip(l.name, l)
     }
 
     /** "Season ∨" ট্যাপ → নিচে এপিসোড-গ্রিড প্যানেল (রেফারেন্স-অ্যাপের মতো) */
@@ -739,11 +883,7 @@ class DetailActivity : AppCompatActivity() {
         grid.isNestedScrollingEnabled = false
         val links = m.links.filter { it.streamUrl.isNotBlank() || it.tgUrl.isNotBlank() }
         val epRe = Regex("(?i)EP\\s*(\\d+)")
-        val numbered = links.mapNotNull { l -> epRe.find(l.name)?.groupValues?.get(1)?.toInt() }
-        val useNumbers = series && links.size > 1 && numbered.size == links.size
-        val sorted: List<MediaLink> =
-            if (useNumbers) links.sortedBy { epRe.find(it.name)?.groupValues?.get(1)?.toInt() ?: 0 }
-            else links
+        val sorted = sortedEpLinks(links)
         grid.adapter = object : RecyclerView.Adapter<GridVH>() {
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GridVH {
                 val tv = TextView(this@DetailActivity)
@@ -761,9 +901,10 @@ class DetailActivity : AppCompatActivity() {
             override fun getItemCount() = sorted.size
             override fun onBindViewHolder(h: GridVH, position: Int) {
                 val l = sorted[position]
-                h.tv.text = if (useNumbers)
-                    String.format(Locale.US, "%02d", epRe.find(l.name)?.groupValues?.get(1)?.toInt() ?: 0)
-                else l.name
+                /* 📚 নম্বরযুক্ত এপিসোড 01 02 03… ক্রমে; নম্বর নেই এমন (পুরো সিজন) আসল নামেই */
+                h.tv.text = epRe.find(l.name)?.let {
+                    String.format(Locale.US, "%02d", it.groupValues[1].toInt())
+                } ?: l.name
                 /* ▶ এখন প্লে হচ্ছে যেটা — শুধু সেটার টাইল সবুজ-গ্রেডিয়েন্ট (ভিউ রিসাইকেল হয়, তাই দুই দিকই সেট) */
                 val now = isNowPlaying(l.name)
                 h.tv.background = getDrawableCompat(
@@ -800,16 +941,18 @@ class DetailActivity : AppCompatActivity() {
     /* ── ⭐ For You — রিকমেন্ডেশন গ্রিড ─────────────────────────── */
 
     private fun loadForYou(m: MovieItem) {
-        val grid = findViewById<RecyclerView>(R.id.forYouGrid)
-        grid.layoutManager = GridLayoutManager(this, 3)
-        grid.isNestedScrollingEnabled = false
+        val box = findViewById<LinearLayout>(R.id.forYouBox)
 
         fun fill(pool: List<MovieItem>) {
-            val others = pool.filter {
-                it.title != m.title && BloggerApi.isAdult(it) == BloggerApi.isAdult(m)
-            }.take(9)
-            if (others.isEmpty()) return
-            runOnUiThread { if (grid.adapter == null) grid.adapter = ForYouAdapter(others) }
+            /* ⭐ (v3.7 মালিকের নির্দেশ) For You = যে কোনো জায়গা থেকে ৩০টা র‍্যান্ডম মুভি —
+               ১৮+ আর সাধারণ সব মিলিয়ে; ১৮+ কার্ড ব্লার+18+ ব্যাজে, সাধারণগুলো সোজা পোস্টার।
+               প্রতিবার নতুন করে শাফল — প্রতি পেজে আলাদা সেট দেখায়। */
+            val picked = pool.filter { it.title != m.title }
+                .distinctBy { it.title to it.permalink }
+                .shuffled()
+                .take(FY_COUNT)
+            if (picked.isEmpty()) return
+            runOnUiThread { buildForYouGrid(box, picked, BloggerApi.isAdult(m)) }
         }
 
         val fresh = System.currentTimeMillis() - fyTs < 10 * 60_000L
@@ -818,66 +961,122 @@ class DetailActivity : AppCompatActivity() {
             return
         }
         Thread {
-            try {
-                val p1 = BloggerApi.load(null, null, 1)
-                fyCache = p1.items
-                fyTs = System.currentTimeMillis()
-                fill(p1.items)
-            } catch (_: Exception) {
+            /* 🔑 (v3.6 ফিক্স) Blogger-এর start-index = আইটেম-অফসেট — আগে ভুলে "2" দিলে
+               প্রায় একই পেজ দুবার আসত, তাই অনেক পেজে সাধারণ মুভি মাত্র ৩টা থেকে যেত!
+               এখন পেজ-ধরে আনা হয় (1, 1+PAGE_SIZE, 1+2×PAGE_SIZE …) — ৩০টা না হওয়া পর্যন্ত। */
+            val pool = ArrayList<MovieItem>()
+            val seen = HashSet<String>()
+            var start = 1
+            for (page in 1..6) {
+                try {
+                    for (c in BloggerApi.load(null, null, start).items)
+                        if (seen.add(c.title)) pool.add(c)
+                } catch (_: Exception) {
+                }
+                if (pool.size >= 90) break   /* ৩০টা র‍্যান্ডমের জন্য যথেষ্ট পুল */
+                start += BloggerApi.PAGE_SIZE
+                if (start > 120) break   /* সেফটি লিমিট */
             }
+            fyCache = pool
+            fyTs = System.currentTimeMillis()
+            fill(pool)
         }.start()
     }
 
-    inner class ForYouAdapter(private val items: List<MovieItem>) :
-        RecyclerView.Adapter<ForYouAdapter.VH>() {
-
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val img: ImageView = v.findViewById(R.id.fyImg)
-            val scrim: View = v.findViewById(R.id.fyScrim)
-            val badge: TextView = v.findViewById(R.id.fyBadge)
-            val title: TextView = v.findViewById(R.id.fyTitle)
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
-            VH(LayoutInflater.from(parent.context).inflate(R.layout.item_for_you, parent, false))
-
-        override fun getItemCount() = items.size
-
-        override fun onBindViewHolder(h: VH, position: Int) {
-            val m = items[position]
-            h.title.text = m.title
-            val adult = BloggerApi.isAdult(m)
-            if (adult) {
-                h.scrim.visibility = View.VISIBLE
-                h.badge.visibility = View.VISIBLE
-                h.badge.text = "18+"
-                ImageLoader.load(h.img, m.poster, pixelate = true)
-            } else {
-                h.scrim.visibility = View.GONE
-                val lang = m.labels.firstOrNull {
-                    it.equals("Hindi", true) || it.equals("Hindi Dubbed", true) ||
-                        it.equals("Bangla", true) || it.equals("Bengali", true) ||
-                        it.equals("Korean", true) || it.equals("English", true) ||
-                        it.equals("Anime", true) || it.equals("Horror", true)
+    /* ⭐ For You (v3.8 মালিকের নির্দেশ): এক রোতে ৩টা পোস্টার, প্রতি ২ রো (৬ মুভি) পরে
+       পুরো-প্রস্থ ব্যানার, মোট ৩০টা র‍্যান্ডম মুভি। ১৮+ কার্ড ব্লার+ব্যাজে, সাধারণগুলো সোজা।
+       RecyclerView নয় — ScrollView-এর ভেতরে RV এক সারিতে আটকে যাওয়ার পুরনো বাগই
+       "সবসময় ৩টা দেখানোর" আসল কারণ ছিল; সরাসরি রো-বানিয়ে বসালে সেই বাগ থাকেই না। */
+    private fun buildForYouGrid(box: LinearLayout, items: List<MovieItem>, pageAdult: Boolean) {
+        box.removeAllViews()
+        if (items.isEmpty()) return
+        val inf = LayoutInflater.from(this)
+        var i = 0
+        while (i < items.size) {
+            /* এক ব্লক = ২ রো (৬ মুভি); রো = ৩টা কার্ড */
+            val chunk = items.subList(i, minOf(i + 6, items.size)).chunked(3)
+            for (row in chunk) {
+                val rl = LinearLayout(this)
+                rl.orientation = LinearLayout.HORIZONTAL
+                for (mItem in row) {
+                    val card = inf.inflate(R.layout.item_for_you, rl, false)
+                    card.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    val img = card.findViewById<ImageView>(R.id.fyImg)
+                    val scrim = card.findViewById<View>(R.id.fyScrim)
+                    val badge = card.findViewById<TextView>(R.id.fyBadge)
+                    val title = card.findViewById<TextView>(R.id.fyTitle)
+                    title.text = mItem.title
+                    if (BloggerApi.isAdult(mItem)) {
+                        scrim.visibility = View.VISIBLE
+                        badge.visibility = View.VISIBLE
+                        badge.text = "18+"
+                        ImageLoader.load(img, mItem.poster, pixelate = true)
+                    } else {
+                        scrim.visibility = View.GONE
+                        val lang = mItem.labels.firstOrNull {
+                            it.equals("Hindi", true) || it.equals("Hindi Dubbed", true) ||
+                                it.equals("Bangla", true) || it.equals("Bengali", true) ||
+                                it.equals("Korean", true) || it.equals("English", true) ||
+                                it.equals("Anime", true) || it.equals("Horror", true)
+                        }
+                        if (lang != null) {
+                            badge.visibility = View.VISIBLE
+                            badge.text = lang
+                        } else badge.visibility = View.GONE
+                        ImageLoader.load(img, mItem.poster)
+                    }
+                    card.setOnClickListener { v ->
+                        /* (v3.7) পোস্টার-ক্লিকের অ্যাড বাদ — সরাসরি মুভিতে */
+                        v.context.startActivity(DetailActivity.intent(v.context, mItem))
+                    }
+                    rl.addView(card)
                 }
-                if (lang != null) {
-                    h.badge.visibility = View.VISIBLE
-                    h.badge.text = lang
-                } else h.badge.visibility = View.GONE
-                ImageLoader.load(h.img, m.poster)
+                while (rl.childCount < 3) rl.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
+                box.addView(rl)
             }
-            h.itemView.setOnClickListener {
-                val ctx = h.itemView.context
-                Ads.onPosterOpened(ctx, adult) /* 💰 পোস্টার-ক্লিকে সাথে সাথে র‍্যান্ডম লিংক */
-                ctx.startActivity(DetailActivity.intent(ctx, m))
-                (ctx as? android.app.Activity)?.finish()
+            i += 6
+            if (i < items.size) {
+                /* 💰 প্রতি ২ রোর পরে রিয়েল Adsterra ব্যানার (১৮+ পেজে অ্যাডাল্ট ব্যানার)
+                   ⭐ (v3.9) রোটা সত্যিই চোখে পড়লে তবেই লোড হয় — অদেখা ব্যানারের
+                   ইমপ্রেশন নেই, মানে সব ইমপ্রেশন রিয়েল-ভিউয়েবল → CPM হাই থাকে */
+                val b = inf.inflate(R.layout.item_fy_banner, box, false)
+                box.addView(b)
+                registerLazyBanner(b, pageAdult)
+            }
+        }
+    }
+
+    /* ── 💰 ভিউয়েবল-ব্যানার (v3.9): পেজ খোলামাত্র সব ব্যানার একসাথে ফায়ার করা বন্ধ —
+       যেটা ইউজারের চোখে পড়ে (স্ক্রল করে এলে) শুধু সেটাই লোড হয়। এতে ইমপ্রেশন
+       ভুয়া/ফর্স না হয়ে একদম রিয়েল হয় — নেটওয়ার্ক CPM-এ কোনো আঘাত আসে না। ── */
+    private val lazyBanners = ArrayList<Pair<View, Boolean>>()
+
+    private fun registerLazyBanner(row: View, adult: Boolean) {
+        lazyBanners.add(row to adult)
+        checkVisibleBanners()
+    }
+
+    private fun checkVisibleBanners() {
+        if (lazyBanners.isEmpty()) return
+        val vh = resources.displayMetrics.heightPixels
+        val it2 = lazyBanners.iterator()
+        while (it2.hasNext()) {
+            val (row, adult) = it2.next()
+            if (!row.isShown) continue
+            val loc = IntArray(2)
+            row.getLocationOnScreen(loc)
+            if (loc[1] < vh && loc[1] + row.height > 0) {
+                it2.remove()
+                Ads.applyBanner(row.findViewById(R.id.fyBannerWeb), Ads.bannerHtml(adult, true))
             }
         }
     }
 
     /* ── 📜 পুরো এপিসোড/ফাইল লিস্ট — সুন্দর স্ক্রলেবল বটম শিট ──── */
 
-    private fun showAllLinks(links: List<MediaLink>) {
+    private fun showAllLinks(rawLinks: List<MediaLink>) {
+        /* 📚 (v3.7) শিটের লিস্টও ছোট→বড় ক্রমে */
+        val links = sortedEpLinks(rawLinks)
         val v = LayoutInflater.from(this).inflate(R.layout.sheet_links, null)
         v.findViewById<TextView>(R.id.sheetCount).text = "মোট ${links.size} টা ফাইল"
         val rv = v.findViewById<RecyclerView>(R.id.sheetList)
@@ -931,16 +1130,140 @@ class DetailActivity : AppCompatActivity() {
         Toast.makeText(this, "বাতিল করা হয়েছে", Toast.LENGTH_SHORT).show()
     }
 
+    /* ── 🎨 (v4.1) মিনি-প্লেয়ারের ফলব্যাক কার্ড — ফুলস্ক্রিনের ডিজাইনেই, MX/VLC বাটনসহ ── */
+    private fun miniCard(
+        icon: String, titleTxt: String, msg: String,
+        onMx: () -> Unit, onVlc: () -> Unit
+    ): androidx.appcompat.app.AlertDialog {
+        val px = { d: Int -> (d * resources.displayMetrics.density).toInt() }
+        fun txt(text: String, size: Float, color: Int, bold: Boolean): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                this.text = text
+                textSize = size
+                setTextColor(color)
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                gravity = android.view.Gravity.CENTER
+            }
+        fun rowParams(top: Int): android.widget.LinearLayout.LayoutParams =
+            android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(top) }
+
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(px(22), px(24), px(22), px(18))
+            background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_fallback_card)
+        }
+        val dot = txt(icon, 32f, 0xFFFFFFFF.toInt(), false)
+        dot.background = androidx.core.content.ContextCompat.getDrawable(this, R.drawable.bg_fallback_icon)
+        val dotLp = android.widget.LinearLayout.LayoutParams(px(72), px(72))
+        dotLp.gravity = android.view.Gravity.CENTER
+        card.addView(dot, dotLp)
+        card.addView(txt(titleTxt, 17f, 0xFFE9EEFF.toInt(), true), rowParams(14))
+        card.addView(txt(msg, 13.5f, 0xFFB9C2E0.toInt(), false), rowParams(8))
+
+        fun btn(label: String, bgRes: Int, txtColor: Int, top: Int, cb: () -> Unit) {
+            val b = txt(label, 14f, txtColor, true)
+            b.background = androidx.core.content.ContextCompat.getDrawable(this, bgRes)
+            b.setPadding(0, px(13), 0, px(13))
+            b.setOnClickListener { cb() }
+            card.addView(b, rowParams(top))
+        }
+
+        var dlg: androidx.appcompat.app.AlertDialog? = null
+        btn("▶  MX Player-এ দেখুন", R.drawable.bg_fallback_btn_mx, 0xFF07280F.toInt(), 20, onMx)
+        btn("▶  VLC-তে দেখুন", R.drawable.bg_fallback_btn_vlc, 0xFFB9AFFF.toInt(), 10, onVlc)
+        val no = txt("এখন না", 13f, 0xFF8B94B8.toInt(), false)
+        no.setPadding(0, px(12), 0, px(2))
+        no.setOnClickListener { dlg?.dismiss() }
+        card.addView(no)
+
+        val wrap = android.widget.FrameLayout(this)
+        wrap.setPadding(px(18), px(10), px(18), px(10))
+        wrap.addView(card)
+
+        dlg = androidx.appcompat.app.AlertDialog.Builder(this).setView(wrap).create()
+        dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        return dlg
+    }
+
+    /* 🎨 (v4.1) লোড-ফেইলে মিনি থেকেই MX/VLC চালাও — পুরনো সিস্টেম, এখন মিনিতেও */
+    private fun showMiniFallback() {
+        val u = playingUrl
+        if (u.isBlank()) return
+        val MX1 = "com.mxtech.videoplayer.ad"   /* MX Player (ফ্রি) */
+        val MX2 = "com.mxtech.videoplayer.pro"  /* MX Player Pro */
+        val VLC = "org.videolan.vlc"
+
+        fun launchIn(pkg: String): Boolean {
+            return try {
+                val i = Intent(Intent.ACTION_VIEW)
+                i.setDataAndType(Uri.parse(u), "video/*")
+                i.setPackage(pkg)
+                i.putExtra("title", playingName)
+                startActivity(i)
+                true
+            } catch (_: Exception) { false }
+        }
+
+        fun openStore(pkg: String) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")))
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://play.google.com/store/apps/details?id=$pkg")))
+                } catch (_: Exception) {}
+            }
+        }
+
+        miniCard(
+            "📺",
+            "এই ভিডিওটা লোড হচ্ছে না",
+            "এই লিংকটা এই ফোনের প্লেয়ারে চলছে না।\n" +
+                "MX Player বা VLC দিয়ে চেষ্টা করো — একই লিংকে স্মুথলি চলতে পারে।",
+            {
+                if (!launchIn(MX1) && !launchIn(MX2)) {
+                    Toast.makeText(this, "MX Player ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলে আবার চাপ দাও", Toast.LENGTH_LONG).show()
+                    openStore(MX1)
+                }
+            },
+            {
+                if (!launchIn(VLC)) {
+                    Toast.makeText(this, "VLC ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলে আবার চাপ দাও", Toast.LENGTH_LONG).show()
+                    openStore(VLC)
+                }
+            }
+        ).also { it.show() }
+    }
+
     override fun onPause() {
         super.onPause()
+        /* 🔇 পেজ সরে গেলে (নতুন For You ডিটেইল / অ্যাড / অ্যাপ-সুইচ) মিনি-প্লেয়ার থেমে
+           যাবে — দুই পেজের সাউন্ড একসাথে বাজবে না; ফিরে এলে ওই পজিশন থেকেই প্লে */
+        player?.pause()
         ui.removeCallbacks(gateTick)
         findViewById<View>(R.id.gateOverlay).visibility = View.GONE
     }
 
+    override fun onStop() {
+        super.onStop()
+        /* 📊 (v4.1) পেজ চোখের আড়ালে গেলেই মিনি থামাও — নইলে ব্যাকগ্রাউন্ডেও সার্ভারের
+           ব্যান্ডউইডথ খেতে থাকে। ফুলস্ক্রিনে হাতবদল (handedOut) হলে ওখানকার ভিডিওই চলছে */
+        if (!handedOut) player?.let { if (it.isPlaying) it.pause() }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        /* 📊 (v4.1) পেজ বন্ধ করলে লাইভ-বক্স থেকে সাথে সাথে নামাও — ফুলস্ক্রিনে হাতবদল হলে ওখানেই দেখা চলছে */
+        if (!handedOut && player != null) Stats.watchStop(this)
         ui.removeCallbacksAndMessages(null)
-        releaseMini()
+        if (handedOut) {
+            /* 🎬 প্লেয়ার এখন ফুলস্ক্রিনের হাতে — এখানে ভাঙলে ওখানকার প্লে বন্ধ হয়ে যাবে */
+            player = null
+            pv.player = null
+        } else {
+            releaseMini()
+        }
+        instance = null
         FloatPlayer.onHostDestroyed(this)   /* 🪟 অ্যাপ থেকে বের হলে পপআপও বন্ধ */
     }
 
@@ -1115,6 +1438,9 @@ class DetailActivity : AppCompatActivity() {
             Toast.makeText(this, "ডাউনলোড লিংক নেই", Toast.LENGTH_SHORT).show()
             return
         }
+        /* 🎬 (v3.7 মালিকের নির্দেশ) ডাউনলোড আবার সরাসরি ক্রোমে — DownloadManager বাদ
+           (অনেক সময় সমস্যা করে); ইউজাররা বেশিরভাগ ক্রোমেই ডাউনলোড করে, ক্রেডিট-নাম
+           না এলেও সমস্যা নেই। DownloadManager শুধু একদম শেষ ফলব্যাক হিসেবে আছে। */
         try {
             val i = Intent(Intent.ACTION_VIEW, Uri.parse(streamUrl))
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -61,12 +61,6 @@ import kotlin.math.max
  */
 class PlayerActivity : AppCompatActivity() {
 
-    companion object {
-        /* 🎬 ডিটেইল-পেজের মিনি-প্লেয়ার ও ফুলস্ক্রিনের পজিশন-হ্যান্ডওফ */
-        var handoffUrl: String = ""
-        var handoffPos: Long = -1L
-    }
-
     private var player: ExoPlayer? = null
     private var trackSel: DefaultTrackSelector? = null
     private var audioDisabled = false
@@ -77,8 +71,15 @@ class PlayerActivity : AppCompatActivity() {
     private var movieName: String = ""   /* 🏷️ আসল মুভির নাম (ক্রেডিট + প্যানেল) */
     private var resumePos = 0L           /* ⏱ মিনি-প্লেয়ার থেকে আসলে ওখানকার পজিশন */
 
+    /* 📚 এপিসোড-চেইন (v3.5) — ফুলস্ক্রিনের ⏭ নেক্সট বাটন আর অটো-নেক্সটের জন্য */
+    private var playUrls: ArrayList<String> = ArrayList()
+    private var playNames: ArrayList<String> = ArrayList()
+    private var playIdx = -1
+
     private lateinit var pv: PlayerView
     private lateinit var gestureHint: TextView
+    private lateinit var hintBox: View
+    private lateinit var hintIcon: ImageView
     private lateinit var gesturePill: View
     private lateinit var pillIcon: ImageView
     private lateinit var pillBar: ProgressBar
@@ -92,6 +93,19 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnMAudio: TextView
     private lateinit var btnMScale: TextView
     private lateinit var lockLayer: View
+    /* 🎬 মাঝের ⏪10 ▶/⏸ ⏩10 (v3.5 — মালিকের নির্দেশে ফিরে এলো) + ⏮ ⏭ প্রিভিয়াস/নেক্সট (v3.6) */
+    private lateinit var btnPRew: ImageButton
+    private lateinit var btnPPlay: ImageButton
+    private lateinit var btnPFwd: ImageButton
+    private lateinit var btnPrevEp: ImageButton
+    private lateinit var btnNextEp: ImageButton
+    /* ⏮⏭ সুইচের অ্যাড-গেট (v3.6) — প্লে-গেটের মতোই ৫ সেকেন্ড, ১-মিনিট নিয়মে */
+    private lateinit var epGateBox: View
+    private lateinit var epGateMsg: TextView
+    private lateinit var epGateCount: TextView
+    private var pendingEpIdx = -1
+    private var pendingEpAuto = false
+    private var epGateEndAt = 0L
     private var started = false
     private var locked = false
     private var controllerVisible = false
@@ -101,6 +115,20 @@ class PlayerActivity : AppCompatActivity() {
     /* 🔊 সাউন্ড সাপোর্ট নেই এমন ফোনে MX Player ফলব্যাক ডায়ালগ (বারবার দেখানো যায়) */
     private var soundHelpDialog: AlertDialog? = null
     private var extPlayerUsed = false
+    private var deviceDialog: AlertDialog? = null
+    private var deviceNotSupportedShown = false
+    /* 📊 (v4.0) প্লে চলাকালীন হার্টবিট — প্যানেলের "▶️ এখন যা দেখা হচ্ছে" বক্স এটা দিয়েই জানে
+       কোন ফোন কোন মুভি কত কোয়ালিটিতে দেখছে (পজ করলে হার্টবিট বন্ধ → ২ মিনিট পর বক্স থেকে বাদ) */
+    private val watchTick = object : Runnable {
+        override fun run() {
+            try {
+                if (player?.isPlaying == true) Stats.watch(this@PlayerActivity, statLabel())
+            } catch (_: Exception) {}
+            ui.postDelayed(this, 45000L)
+        }
+    }
+    /* 🎬 (v3.7) মিনি-প্লেয়ারের চলমান ExoPlayer গ্রহণ করা হলে true — সিমলেস, কোনো রিলোড নেই */
+    private var adopted = false
 
     private val SPEEDS = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
     private val SPEED_LABELS = arrayOf("0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x")
@@ -168,10 +196,16 @@ class PlayerActivity : AppCompatActivity() {
         url = intent.getStringExtra("url") ?: run { finish(); return }
         title = intent.getStringExtra("title") ?: "MovieBoxBD"
         movieName = intent.getStringExtra("movie_name") ?: ""
+        ui.postDelayed(watchTick, 15000L)   /* 📊 (v4.0) হার্টবিট-লুপ চালু (প্রথম বিট ১৫ সে পরে) */
         resumePos = intent.getLongExtra("resume_pos", 0L).coerceAtLeast(0L)
+        playUrls = intent.getStringArrayListExtra("urls") ?: ArrayList()
+        playNames = intent.getStringArrayListExtra("names") ?: ArrayList()
+        playIdx = intent.getIntExtra("idx", -1)
 
         pv = findViewById(R.id.playerView)
         gestureHint = findViewById(R.id.gestureHint)
+        hintBox = findViewById(R.id.gestureHintBox)
+        hintIcon = findViewById(R.id.hintIcon)
         gesturePill = findViewById(R.id.gesturePill)
         pillIcon = findViewById(R.id.pillIcon)
         pillBar = findViewById(R.id.pillBar)
@@ -192,7 +226,36 @@ class PlayerActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnHelp).setOnClickListener { openTelegramChannel() }
         findViewById<TextView>(R.id.btnSetting).setOnClickListener { showSettings() }
 
-        /* (v3.4) ⏪10 ▶ ⏩10 আলাদা বাটন আর রোটেট বাদ — ডাবল-ট্যাপ জেসচারেই সব হয় */
+        /* (v3.5) ⏪10 ▶/⏸ ⏩10 আবার ফিরে এলো — মালিকের নির্দেশ; ডাবল-ট্যাপ জেসচারও আগের মতোই চলবে
+           (v3.6) হিন্টে শুধু রিয়েল আইকন + অঙ্ক — কোনো ইমোজি বা "সেকেন্ড" লেখা নেই */
+        btnPRew = findViewById(R.id.btnPRew)
+        btnPPlay = findViewById(R.id.btnPPlay)
+        btnPFwd = findViewById(R.id.btnPFwd)
+        btnPRew.setOnClickListener {
+            val p = player ?: return@setOnClickListener
+            p.seekTo((p.currentPosition - 10_000).coerceAtLeast(0))
+            showHint(R.drawable.ic_rew10, "10")
+        }
+        btnPFwd.setOnClickListener {
+            val p = player ?: return@setOnClickListener
+            p.seekTo(p.currentPosition + 10_000)
+            showHint(R.drawable.ic_ffwd10, "10")
+        }
+        btnPPlay.setOnClickListener {
+            val p = player ?: return@setOnClickListener
+            if (p.isPlaying) p.pause() else p.play()
+        }
+        /* ⏮ ⏭ প্রিভিয়াস/নেক্সট — সারির বাঁ দিকে (মালিকের নির্দেশ v3.6);
+           সুইচের আগে প্লে-গেটের মতোই ১-মিনিট অ্যাড-গেট — স্কিপ করে অ্যাড এড়ানো যাবে না */
+        btnPrevEp = findViewById(R.id.btnPrevEp)
+        btnNextEp = findViewById(R.id.btnNextEp)
+        btnPrevEp.setOnClickListener { switchEpisode(playIdx - 1) }
+        btnNextEp.setOnClickListener { switchEpisode(playIdx + 1) }
+        epGateBox = findViewById(R.id.epGateBox)
+        epGateMsg = findViewById(R.id.epGateMsg)
+        epGateCount = findViewById(R.id.epGateCount)
+        findViewById<View>(R.id.btnEpGateCancel).setOnClickListener { cancelEpGate() }
+        refreshEpButtons()
 
         /* ═══ ইনসেট: কন্ট্রোল বার নেভবার/নোটচের নিচে চাপা পড়বে না +
                বার কোথাও উঠে এলে আবার লুকিয়ে দেওয়া হয় (আসল ইমারসিভ) ═══ */
@@ -224,7 +287,7 @@ class PlayerActivity : AppCompatActivity() {
         /* 🔒 লক + বাকি মেনু */
         findViewById<View>(R.id.btnMLock).setOnClickListener { lockScreen() }
         btnMUnlock.setOnClickListener { unlockScreen() }
-        lockLayer.setOnClickListener { showHint("স্ক্রিন লক করা — খুলতে উপরের বাঁ কোণার আনলক বাটন চাপো") }
+        lockLayer.setOnClickListener { showHint(null, "স্ক্রিন লক করা — খুলতে উপরের বাঁ কোণার আনলক বাটন চাপো") }
         btnMSpeed.setOnClickListener { showSpeedDialog() }
         btnMAudio.setOnClickListener { showAudioDialog() }
         btnMScale.setOnClickListener { cycleScale() }
@@ -245,7 +308,26 @@ class PlayerActivity : AppCompatActivity() {
         })
 
         setupGestures()
-        buildPlayer()
+        /* 🎬 (v3.7 মালিকের নির্দেশ) মিনি-প্লেয়ারের চলমান প্লেয়ার এলে সেটাই গ্রহণ — ভিডিও
+           চলতেই থাকে, নতুন করে লোড/বাফার হয় না (সিমলেস মিনি↔ফুলস্ক্রিন) */
+        val ext = DetailActivity.hfPlayer
+        if (ext != null) {
+            DetailActivity.hfPlayer = null
+            adopted = true
+            started = true          /* READY-তে আবার seek/Stats হবে না */
+            player = ext
+            setupPlayerView()
+            pv.player = ext
+            ext.addListener(playerListener)
+            ext.play()              /* চলতেই থাকবে */
+            /* 🖼 নতুন TextureView-এ ছবি গ্যারান্টি — একই পজিশনে ছোট্ট সিক দিলে
+               ডিকোডার নতুন সারফেসে সাথে সাথে রেন্ডার শুরু করে (কালো-ফ্রেম বাগ বন্ধ)
+               ⚡ (v4.2) তবে প্লে চলাকালীন সিক দিলে স্লো ডিভাইসে ছোট্ট রি-বাফার-স্পিনার
+               আসত — চলমান ফ্রেম নতুন সারফেসে আপনিই আসে, তাই পজড হলে তবেই সিক */
+            if (!ext.isPlaying) ext.seekTo(ext.currentPosition)
+        } else {
+            buildPlayer()
+        }
     }
 
     private fun hideSystemBars() {
@@ -277,7 +359,7 @@ class PlayerActivity : AppCompatActivity() {
         scaleIndex = (scaleIndex + 1) % SCALE_MODES.size
         pv.resizeMode = SCALE_MODES[scaleIndex]
         btnMScale.text = SCALE_LABELS[scaleIndex]
-        showHint(SCALE_HINTS[scaleIndex])
+        showHint(null, SCALE_HINTS[scaleIndex])
     }
 
     /* ── 🔒 স্ক্রিন লক / আনলক ───────────────────────────────── */
@@ -445,7 +527,124 @@ class PlayerActivity : AppCompatActivity() {
         return if (tag != null) "$movieName ($tag)" else "$movieName ($title)"
     }
 
+    /* ── 📱 ডিভাইস-সাপোর্ট ফলব্যাক (v3.9 — v3.4-এর পুরনো ফিচার ফেরত):
+       যে ফোনে এই ভিডিও ফরম্যাট চলে না — MX/BS Player-এ সরাসরি দেখার ডায়ালগ ── */
+    private fun showDeviceNotSupported() {
+        if (deviceDialog?.isShowing == true || deviceNotSupportedShown) return
+        deviceNotSupportedShown = true
+        val MX1 = "com.mxtech.videoplayer.ad"      /* MX Player (ফ্রি) */
+        val MX2 = "com.mxtech.videoplayer.pro"     /* MX Player Pro */
+        val BS = "com.bsplayer.bspandroid.free"    /* BS Player */
+
+        fun launchIn(pkg: String): Boolean {
+            return try {
+                val i = Intent(Intent.ACTION_VIEW)
+                i.setDataAndType(Uri.parse(url), "video/*")
+                i.setPackage(pkg)
+                i.putExtra("title", title)
+                startActivity(i)
+                extPlayerUsed = true
+                true
+            } catch (_: Exception) { false }
+        }
+
+        fun openStore(pkg: String) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")))
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://play.google.com/store/apps/details?id=$pkg")))
+                } catch (_: Exception) {}
+            }
+        }
+
+        deviceDialog = fallbackCard(
+            "📺",
+            "এই ডিভাইসে সাপোর্ট হচ্ছে না",
+            "এই ভিডিওর ফরম্যাট আপনার ফোনের প্লেয়ার চালাতে পারছে না।\n" +
+                "দয়া করে MX Player বা VLC দিয়ে সরাসরি দেখুন — একই লিংকে স্মুথলি চলবে।",
+            {
+                if (!launchIn(MX1) && !launchIn(MX2)) {
+                    Toast.makeText(this, "MX Player ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলেই মুভি চলবে", Toast.LENGTH_LONG).show()
+                    openStore(MX1)
+                }
+            },
+            {
+                if (!launchIn(BS)) {
+                    Toast.makeText(this, "VLC/BS Player ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলেই মুভি চলবে", Toast.LENGTH_LONG).show()
+                    openStore(BS)
+                }
+            }
+        ).also { it.show() }
+    }
+
     /* ── 🔊 MX Player ফলব্যাক (সাউন্ড সাপোর্ট নেই এমন ফোনের জন্য) ────── */
+    /* ── 🎨 (v4.0) ফলব্যাক ডায়ালগ রিডিজাইন: সিস্টেম পুরনোটাই, লুক নতুন ──
+       গোল-গাল ডার্ক কার্ড + বড় আইকন + MX/VLC দুটো বড় বাটন + "এখন না" */
+    private fun fallbackCard(
+        icon: String, titleTxt: String, msg: String,
+        onMx: () -> Unit, onVlc: () -> Unit
+    ): AlertDialog {
+        val px = { d: Int -> (d * resources.displayMetrics.density).toInt() }
+
+        fun txt(text: String, size: Float, color: Int, bold: Boolean, center: Boolean): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                this.text = text
+                textSize = size
+                setTextColor(color)
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                gravity = if (center) android.view.Gravity.CENTER else android.view.Gravity.START
+            }
+
+        fun rowParams(top: Int, h: Int = -2): android.widget.LinearLayout.LayoutParams =
+            android.widget.LinearLayout.LayoutParams(-1, h).apply { topMargin = px(top) }
+
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(px(22), px(24), px(22), px(18))
+            background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_fallback_card)
+        }
+
+        val dot = txt(icon, 32f, 0xFFFFFFFF.toInt(), false, true)
+        dot.background = androidx.core.content.ContextCompat.getDrawable(this, R.drawable.bg_fallback_icon)
+        val dotLp = android.widget.LinearLayout.LayoutParams(px(72), px(72))
+        dotLp.gravity = android.view.Gravity.CENTER
+        card.addView(dot, dotLp)
+
+        card.addView(txt(titleTxt, 17f, 0xFFE9EEFF.toInt(), true, true), rowParams(14))
+        val m = txt(msg, 13.5f, 0xFFB9C2E0.toInt(), false, true)
+        m.setLineSpacing(px(3).toFloat(), 1f)
+        card.addView(m, rowParams(8))
+
+        /* বাটন-দুটো — MX সবুজ, VLC বেগুনি-আউটলাইন */
+        fun btn(label: String, bgRes: Int, txtColor: Int, top: Int, cb: () -> Unit) {
+            val b = txt(label, 14f, txtColor, true, true)
+            b.background = androidx.core.content.ContextCompat.getDrawable(this, bgRes)
+            b.setPadding(0, px(13), 0, px(13))
+            b.setOnClickListener { cb() }
+            card.addView(b, rowParams(top))
+        }
+
+        var dlg: AlertDialog? = null
+        btn("▶  MX Player-এ দেখুন", R.drawable.bg_fallback_btn_mx, 0xFF07280F.toInt(), 20, onMx)
+        btn("▶  VLC-তে দেখুন", R.drawable.bg_fallback_btn_vlc, 0xFFB9AFFF.toInt(), 10, onVlc)
+
+        val no = txt("এখন না", 13f, 0xFF8B94B8.toInt(), false, true)
+        no.setPadding(0, px(12), 0, px(2))
+        no.setOnClickListener { dlg?.dismiss() }
+        card.addView(no)
+
+        /* বাইরের মার্জিন-র‍্যাপার */
+        val wrap = android.widget.FrameLayout(this)
+        wrap.setPadding(px(18), px(10), px(18), px(10))
+        wrap.addView(card)
+
+        dlg = AlertDialog.Builder(this).setView(wrap).create()
+        dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        return dlg
+    }
+
     private fun showSoundHelp() {
         if (soundHelpDialog?.isShowing == true) return
         val MX1 = "com.mxtech.videoplayer.ad"   /* MX Player (ফ্রি) */
@@ -475,33 +674,31 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        soundHelpDialog = AlertDialog.Builder(this)
-            .setTitle("এই ফোনে সাউন্ড চলছে না")
-            .setMessage(
-                "মুভির সাউন্ড ফরম্যাট (Dolby) এই ফোনের প্লেয়ার ডিকোড করতে পারছে না।\n\n" +
-                "MX Player বা VLC দিয়ে খুললে সাউন্ডসহ চলবে।\n\n" +
-                "• আগে থেকে ইনস্টল থাকলে চাপ দিলেই সঙ্গে সঙ্গে মুভি চলবে\n" +
-                "• না থাকলে Play Store থেকে ইনস্টল করো — ফিরে এলেই ডায়ালগ আবার আসবে"
-            )
-            .setPositiveButton("MX Player-এ চালাও") { _, _ ->
+        soundHelpDialog = fallbackCard(
+            "🔊",
+            "এই ফোনে সাউন্ড চলছে না",
+            "মুভির সাউন্ড ফরম্যাট (Dolby) এই ফোনের প্লেয়ার ডিকোড করতে পারছে না।\n" +
+                "MX Player বা VLC দিয়ে খুললে সাউন্ডসহ চলবে।",
+            {
                 if (!launchIn(MX1) && !launchIn(MX2)) {
                     Toast.makeText(this, "MX Player ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলেই মুভি চলবে", Toast.LENGTH_LONG).show()
                     openStore(MX1)
                 }
-            }
-            .setNeutralButton("VLC-তে চালাও") { _, _ ->
+            },
+            {
                 if (!launchIn(VLC)) {
                     Toast.makeText(this, "VLC ইনস্টল নেই — Play Store খুলছে… ইনস্টল করে ফিরে এলেই মুভি চলবে", Toast.LENGTH_LONG).show()
                     openStore(VLC)
                 }
             }
-            .setNegativeButton("এখন না", null)
-            .show()
+        ).also { it.show() }
     }
 
     /* 🛠 Play Store থেকে MX Player/VLC ইনস্টল করে ফিরে এলে ডায়ালগ নিজেই আবার দেখাও */
     override fun onResume() {
         super.onResume()
+        /* ⏮⏭ গেটের কাউন্টডাউন অ্যাড দেখতে ব্রাউজারে গেলেও ফিরে এসে চালু থাকে */
+        if (pendingEpIdx >= 0 && epGateBox.visibility == View.VISIBLE) tickEpGate()
         if (audioDisabled && !isFinishing && !extPlayerUsed) {
             ui.removeCallbacks(reShowSoundHelp)
             ui.postDelayed(reShowSoundHelp, 600)
@@ -516,6 +713,11 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         ui.removeCallbacks(reShowSoundHelp)
+        /* 🎬 (v3.8) ফুলস্ক্রিন বন্ধ হচ্ছে (ব্যাক) → প্লেয়ার এখানেই মিনিতে ফেরত:
+           onPause আগে চলে, DetailActivity-র onResume পরে — তাই মিনি ফিরে এসেই
+           প্লেয়ার বুঝে যায় (আগে onDestroy-এ ফেরত দিতাম, অথচ onDestroy চলত
+           onResume-এর পরে — মিনি কালো+পজড হয়ে যেত!)। প্লে চালু থাকে। */
+        if (isFinishing && adopted) handBackToMini()
     }
 
     private fun showAudioDialog() {
@@ -609,6 +811,59 @@ class PlayerActivity : AppCompatActivity() {
 
     /* ── প্লেয়ার তৈরি (ধীর সার্ভারের জন্য বড় টাইমআউট) ────────── */
 
+    /* 🎛 PlayerView-এর সেটিংস (রিজোলিউশন-মোড, কন্ট্রোলার টাইমআউট, লক-রো) —
+       নিজের বানানো আর মিনি থেকে গ্রহণ করা — দুই প্লেয়ারেই একই সেটিংস */
+    private fun setupPlayerView() {
+        pv.resizeMode = SCALE_MODES[scaleIndex]
+        pv.controllerShowTimeoutMs = 3500
+        pv.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
+            override fun onVisibilityChanged(visibility: Int) {
+                controllerVisible = visibility == View.VISIBLE
+                lockRow.visibility = if (controllerVisible) View.VISIBLE else View.GONE
+            }
+        })
+    }
+
+    /* 🎧 প্লেয়ার-লিসনার (READY/ENDED/ISPLAYING/VIDEOSIZE/ERROR) — গ্রহণ করা প্লেয়ারেও লাগে */
+    private val playerListener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) {
+                    if (!started) {
+                        started = true
+                        /* ⏱ মিনি-প্লেয়ার থেকে এলে ওখানকার পজিশন থেকেই চলবে */
+                        if (resumePos > 0) player?.seekTo(resumePos)
+                        player?.play()
+                        Stats.play(this@PlayerActivity, statLabel())
+                    }
+                    ensureAudioCompat()
+                }
+                if (state == Player.STATE_ENDED) {
+                    /* 📚 পরের এপিসোড থাকলে ফুলস্ক্রিনেই অটো-নেক্সট — একই ১-মিনিট অ্যাড-গেট নিয়মে;
+                       পরেরটা না থাকলে প্লেয়ার বন্ধ */
+                    if (playIdx + 1 < playUrls.size) switchEpisode(playIdx + 1, auto = true)
+                    else finish()
+                }
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                /* ▶/⏸ মাঝের বড় বাটনের আইকন সবসময় বাস্তব অবস্থার সাথে মিলবে */
+                btnPPlay.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+            }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    requestedOrientation =
+                        if (videoSize.width > videoSize.height)
+                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                handle(error)
+            }
+        }
+
     private fun buildPlayer() {
         errorBox.visibility = View.GONE
         retryCount = 0
@@ -635,47 +890,12 @@ class PlayerActivity : AppCompatActivity() {
             .setSeekForwardIncrementMs(10_000)
             .build()
 
+        setupPlayerView()
         pv.player = player
-        pv.resizeMode = SCALE_MODES[scaleIndex]
-        pv.controllerShowTimeoutMs = 3500
-        pv.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
-            override fun onVisibilityChanged(visibility: Int) {
-                controllerVisible = visibility == View.VISIBLE
-                lockRow.visibility = if (controllerVisible) View.VISIBLE else View.GONE
-            }
-        })
-
         player?.setMediaItem(MediaItem.fromUri(url))
         player?.playbackParameters = PlaybackParameters(SPEEDS[speedIndex])
         player?.playWhenReady = true
-        player?.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) {
-                    if (!started) {
-                        started = true
-                        /* ⏱ মিনি-প্লেয়ার থেকে এলে ওখানকার পজিশন থেকেই চলবে */
-                        if (resumePos > 0) player?.seekTo(resumePos)
-                        player?.play()
-                        Stats.play(this@PlayerActivity, statLabel())
-                    }
-                    ensureAudioCompat()
-                }
-                if (state == Player.STATE_ENDED) finish()
-            }
-
-            override fun onVideoSizeChanged(videoSize: VideoSize) {
-                if (videoSize.width > 0 && videoSize.height > 0) {
-                    requestedOrientation =
-                        if (videoSize.width > videoSize.height)
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                handle(error)
-            }
-        })
+        player?.addListener(playerListener)
         player?.prepare()
     }
 
@@ -684,6 +904,9 @@ class PlayerActivity : AppCompatActivity() {
     private val autoRetry = Runnable { prepareAgain() }
 
     private fun handle(error: PlaybackException) {
+        /* ⏱ (v3.5) এররের আগে যেখানে পৌঁছেছিলাম সেখান থেকেই রিট্রাই/রিস্টার্ট হবে —
+           আর কখনো শূন্য থেকে শুরু হয়ে যাবে না */
+        player?.currentPosition?.takeIf { it > 0 }?.let { resumePos = it }
         val code = error.errorCode
         val audioIssue = code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
                 code == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ||
@@ -705,7 +928,28 @@ class PlayerActivity : AppCompatActivity() {
                 ).show()
                 showSoundHelp()
                 restartPlayer()
+                return
             }
+            /* 📱 (v3.9) মিউট-করে রিস্টার্টেও ডিকোড ব্যর্থ = এই ভিডিও এই ফোনে চলবে না —
+               চুপচাপ লুপে আটকে রাখা বন্ধ, সরাসরি MX/BS Player ডায়ালগ */
+            errorBox.visibility = View.VISIBLE
+            errText.text = "এই ভিডিও ফরম্যাট এই ফোনে চলছে না"
+            findViewById<View>(R.id.btnRetry).visibility = View.VISIBLE
+            btnErrTg.visibility = View.VISIBLE
+            showDeviceNotSupported()
+            return
+        }
+
+        /* 📱 (v3.9) ভিডিও ক্যাপাবিলিটি/প্রসেসিং ব্যর্থ — রিট্রাই নষ্ট, সরাসরি ডায়ালগ */
+        if (code == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
+            code == PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED ||
+            code == PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSOR_INIT_FAILED
+        ) {
+            errorBox.visibility = View.VISIBLE
+            errText.text = "এই ভিডিও ফরম্যাট এই ফোনে চলছে না"
+            findViewById<View>(R.id.btnRetry).visibility = View.VISIBLE
+            btnErrTg.visibility = View.VISIBLE
+            showDeviceNotSupported()
             return
         }
 
@@ -724,6 +968,8 @@ class PlayerActivity : AppCompatActivity() {
             errText.text = "লোড হচ্ছে না — সার্ভার ব্যস্ত থাকতে পারে\n\nএকটু পরে আবার চেষ্টা করো, অথবা নিচের বাটনে চাপো"
             findViewById<View>(R.id.btnRetry).visibility = View.VISIBLE
             btnErrTg.visibility = View.VISIBLE
+            /* 🎨 (v4.1) লোডই না হলে ইউজারকে MX/VLC রাস্তা দেখাও — পুরনো সিস্টেম, নতুন কার্ড-লুক */
+            showDeviceNotSupported()
         }
     }
 
@@ -732,7 +978,8 @@ class PlayerActivity : AppCompatActivity() {
         errorBox.visibility = View.GONE
         val p = player
         if (p != null) {
-            p.seekToDefaultPosition()
+            /* ⏱ (v3.5) শূন্য থেকে নয় — শেষ পরিচিত পজিশন থেকেই আবার চলবে */
+            p.seekTo(resumePos.coerceAtLeast(0L))
             p.prepare()
             p.playWhenReady = true
         } else {
@@ -748,10 +995,100 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun restartPlayer() {
+        player?.currentPosition?.takeIf { it > 0 }?.let { resumePos = it }
         player?.release()
         player = null
         started = false
         buildPlayer()
+    }
+
+    /* ── 📚 ⏮ ⏭ প্রিভিয়াস/নেক্সট — ফুলস্ক্রিনের ভেতরেই (মালিকের নির্দেশ v3.6) ──
+       EP 129 দেখা অবস্থায় ⏭ চাপলে EP 130 সেখানেই চলবে, ⏮ চাপলে আগেরটা।
+       ইউজার যেন এপিসোড স্কিপ করে অ্যাড এড়াতে না পারে — ▶ প্লে-গেটের হুবহু নিয়ম:
+       শেষ অ্যাডের ১ মিনিটের ভেতরে সুইচ = অ্যাড নেই; ১ মিনিট পার = ৫-সেকেন্ডের
+       অ্যাড-গেট → তারপর সুইচ। বাতিল করলে আগের এপিসোডেই ফিরে থাকবে (অটো-নেক্সট হলে বের হবে)। */
+    private fun switchEpisode(target: Int, auto: Boolean = false) {
+        if (target < 0 || target >= playUrls.size) return
+        if (target == playIdx) return
+        if (Ads.episodeGateNeeded(this)) {
+            pendingEpIdx = target
+            pendingEpAuto = auto
+            Ads.openEpisodeGateAd(this)   /* 💰 র‍্যান্ডম ডিরেক্ট-লিংক (প্লে-গেটের মতোই) */
+            player?.pause()
+            showEpGate()
+        } else {
+            doSwitch(target)
+        }
+    }
+
+    /** ৫-সেকেন্ডের অ্যাড-গেট — শেষ হলেই ওই এপিসোডে চলে যাবে */
+    private fun showEpGate() {
+        epGateEndAt = System.currentTimeMillis() + Config.AD_WATCH_SECONDS * 1000L
+        epGateMsg.text = if (pendingEpAuto)
+            "এই এপিসোড শেষ — পরের এপিসোড চলবে"
+        else
+            "পরের এপিসোডে যাওয়ার আগে অ্যাড দেখো"
+        epGateBox.visibility = View.VISIBLE
+        tickEpGate()
+    }
+
+    private fun tickEpGate() {
+        if (pendingEpIdx < 0) return
+        val remain = ((epGateEndAt - System.currentTimeMillis()) / 1000L).toInt()
+        if (remain <= 0) {
+            val t = pendingEpIdx
+            pendingEpIdx = -1
+            pendingEpAuto = false
+            epGateBox.visibility = View.GONE
+            doSwitch(t)
+        } else {
+            epGateCount.text = remain.toString()
+            ui.removeCallbacks(epGateTick)
+            ui.postDelayed(epGateTick, 400)
+        }
+    }
+
+    private val epGateTick = object : Runnable {
+        override fun run() { tickEpGate() }
+    }
+
+    /** ইউজার গেট বাতিল করলে — আগের এপিসোডেই ফিরে আসে; অটো-নেক্সট (ভিডিও শেষ) হলে বের হয় */
+    private fun cancelEpGate() {
+        val wasAuto = pendingEpAuto
+        pendingEpIdx = -1
+        pendingEpAuto = false
+        epGateBox.visibility = View.GONE
+        ui.removeCallbacks(epGateTick)
+        if (wasAuto) finish() else player?.play()
+    }
+
+    /** আসল এপিসোড-সুইচ — গেট শেষ হলে বা ১-মিনিটের ভেতরে হলে এটাই ডাকে */
+    private fun doSwitch(target: Int) {
+        playIdx = target
+        url = playUrls[target]
+        title = playNames.getOrNull(target) ?: title
+        resumePos = 0L
+        started = false
+        retryCount = 0
+        audioChecked = false
+        audioFallbackDone = false
+        errorBox.visibility = View.GONE
+        findViewById<TextView>(R.id.pTitle).text = creditTitle()
+        refreshEpButtons()
+        val p = player
+        if (p != null) {
+            p.setMediaItem(MediaItem.fromUri(url))
+            p.prepare()
+            p.playWhenReady = true
+        } else buildPlayer()
+        Toast.makeText(this, "এখন চলছে: $title", Toast.LENGTH_SHORT).show()
+    }
+
+    /** ⏮ ⏭ বাটনের দৃশ্যমানতা — আগের/পরের এপিসোড থাকলেই দেখাবে */
+    private fun refreshEpButtons() {
+        btnPrevEp.visibility = if (playIdx > 0) View.VISIBLE else View.GONE
+        btnNextEp.visibility =
+            if (playIdx >= 0 && playIdx + 1 < playUrls.size) View.VISIBLE else View.GONE
     }
 
     /* ── জেসচার — পুরো স্ক্রিনে কাজ করে (রেফারেন্স-প্লেয়ারের মতো) ──
@@ -830,10 +1167,13 @@ class PlayerActivity : AppCompatActivity() {
                                 (seekBase + deltaMs).coerceIn(0L, seekDur)
                             else (seekBase + deltaMs).coerceAtLeast(0L)
                             val diff = seekTarget - seekBase
-                            val dir = if (diff >= 0) "সামনে" else "পিছনে"
                             val extra = if (seekDur > 0) " / ${fmtTime(seekDur)}" else ""
                             val sign = if (diff >= 0) "+" else "-"
-                            showHint("$dir ${fmtTime(seekTarget)}$extra  (${abs(diff) / 1000} সেকেন্ড)")
+                            /* (v3.6) শুধু সময় + অঙ্ক — "সামনে/পিছনে" লেখা নেই, আইকন দিয়ে দিক বোঝায় */
+                            showHint(
+                                if (diff >= 0) R.drawable.ic_ffwd10 else R.drawable.ic_rew10,
+                                "${fmtTime(seekTarget)}$extra  ${sign}${abs(diff) / 1000}"
+                            )
                         }
                         2 -> {
                             val f = (brightBase - dy / resources.displayMetrics.heightPixels * 1.2f).coerceIn(0.01f, 1f)
@@ -883,15 +1223,19 @@ class PlayerActivity : AppCompatActivity() {
                                 when {
                                     ev.x < w / 3f -> {
                                         p.seekTo((p.currentPosition - 10_000).coerceAtLeast(0))
-                                        showHint("পিছনে ১০ সেকেন্ড")
+                                        showHint(R.drawable.ic_rew10, "10")
                                     }
                                     ev.x > w * 2f / 3f -> {
                                         p.seekTo(p.currentPosition + 10_000)
-                                        showHint("সামনে ১০ সেকেন্ড")
+                                        showHint(R.drawable.ic_ffwd10, "10")
                                     }
                                     else -> {
                                         if (p.isPlaying) p.pause() else p.play()
-                                        showHint(if (p.isPlaying) "চলছে" else "থামলো")
+                                        /* (v3.6) শুধু প্লে/পজ আইকন — কোনো লেখা নেই */
+                                        showHint(
+                                            if (p.isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
+                                            ""
+                                        )
                                     }
                                 }
                             }
@@ -940,15 +1284,21 @@ class PlayerActivity : AppCompatActivity() {
         pill2x.visibility = View.VISIBLE
     }
 
-    private fun showHint(text: String) {
+    /* (v3.6) হিন্ট = রিয়েল আইকন + শুধু অঙ্ক — কোনো ইমোজি/বাংলা শব্দ নয় (ম্যাক্স-প্লেয়ারের মতো) */
+    private fun showHint(icon: Int?, text: String) {
         gesturePill.visibility = View.GONE
+        if (icon != null) {
+            hintIcon.setImageResource(icon)
+            hintIcon.visibility = View.VISIBLE
+        } else hintIcon.visibility = View.GONE
         gestureHint.text = text
-        gestureHint.visibility = View.VISIBLE
+        gestureHint.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
+        hintBox.visibility = View.VISIBLE
         ui.removeCallbacks(hideHint)
         ui.postDelayed(hideHint, 900)
     }
 
-    private val hideHint = Runnable { gestureHint.visibility = View.GONE }
+    private val hideHint = Runnable { hintBox.visibility = View.GONE }
     private fun hideHintSoon() { ui.postDelayed(hideHint, 400) }
 
     override fun onStop() {
@@ -956,13 +1306,44 @@ class PlayerActivity : AppCompatActivity() {
         player?.playWhenReady = false
     }
 
+    /* 🎬 (v3.8) ফুলস্ক্রিন বন্ধ হচ্ছে (ব্যাক) → প্লেয়ার এখানেই মিনিতে ফেরত:
+       onPause আগে চলে, DetailActivity-র onResume পরে — তাই মিনি ফিরে এসেই
+       প্লেয়ার বুঝে যায় (আগে onDestroy-এ ফেরত দিতাম, অথচ onDestroy চলত
+       onResume-এর পরে — মিনি কালো+পজড হয়ে যেত!)। প্লে চালু থাকে — লোড/বাফার নেই। */
+    private fun handBackToMini() {
+        val p = player ?: return
+        player = null
+        pv.player = null
+        DetailActivity.hfUrl = url          /* ফুলস্ক্রিনে এপিসোড-সুইচ হলে নতুনটাই যাবে */
+        DetailActivity.hfName = title
+        DetailActivity.hfPlayer = p
+    }
+
+
     override fun onDestroy() {
         super.onDestroy()
-        /* 🎬 ফিরে মিনি-প্লেয়ার এখানকার পজিশন থেকে চলবে */
-        handoffUrl = url
-        handoffPos = player?.currentPosition ?: -1L
+        ui.removeCallbacks(watchTick)   /* 📊 (v4.0) হার্টবিট বন্ধ */
         ui.removeCallbacksAndMessages(null)
-        player?.release()
-        player = null
+        if (adopted) {
+            /* 🎬 ব্যাক দিলে onPause-এই ফেরত গেছে; সিস্টেম মেরে ফেললে এখানে ফেরত —
+               কোনোভাবেই প্লেয়ার হারায় না। ডিটেইল পেজ বন্ধ থাকলে এখানেই বন্ধ। */
+            val p = player
+            player = null
+            pv.player = null
+            if (p != null) {
+                DetailActivity.hfUrl = url
+                DetailActivity.hfName = title
+                if (DetailActivity.alive()) DetailActivity.hfPlayer = p else p.release()
+            }
+        } else {
+            /* 🎬 মিনি-স্কোপড হ্যান্ডওফ (v3.5) — শুধু নিজের বানানো প্লেয়ারে;
+               গ্রহণ করা প্লেয়ারে লিখলে মিনি ভুল পজিশনে সিক/রিলোড করত */
+            DetailActivity.hfMovie = movieName
+            DetailActivity.hfUrl = url
+            DetailActivity.hfName = title
+            DetailActivity.hfPos = player?.currentPosition?.takeIf { it > 0 } ?: resumePos
+            player?.release()
+            player = null
+        }
     }
 }

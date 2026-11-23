@@ -17,8 +17,8 @@ import android.webkit.WebViewClient
  *      (সাধারণ মুভিতে NORMAL_DIRECT_LINKS, ১৮+ মুভিতে ADULT_DIRECT_LINKS)
  *   ২. ▶ প্লে / ⬇ ডাউনলোড / 🌐 ব্রাউজার / ✈ টেলিগ্রাম — র‍্যান্ডম Direct Link
  *      (সর্বশেষ দেখানোটা আবার আসে না) + অ্যাপে ৫ সেকেন্ডের কাউন্টডাউন → শেষ হলেই কাজ
- *   ৩. ⏱ (v3.4) ▶ প্লে: প্রতি ১ মিনিট পর পর গেট — মুভি হোক এপিসোড হোক, চিরতরে বন্ধ নয়;
- *      ⬇ ডাউনলোড/টেলিগ্রাম/ব্রাউজার: প্রতিবারই অ্যাড। পোস্টার-ক্লিকের টাইমার আলাদা।
+ *   ৩. ⏱ (v3.7) সব অ্যাকশনে একই গেট: ২ মিনিট পর পর — প্লে/নেক্সট/ডাউনলোড যা-ই হোক,
+ *      চিরতরে বন্ধ নয়; আর চলমান গেটের মধ্যে দ্বিতীয় লিংক-ওপেন নয় (স্প্যাম-প্রোটেকশন)।
  *   ৪. ব্যানার ৪টাই রিয়েল Adsterra কোড, রিয়েল ইমপ্রেশন — ফেক/খালি ব্যানার নেই
  */
 object Ads {
@@ -55,7 +55,7 @@ object Ads {
         return System.currentTimeMillis() - last < Config.AD_COOLDOWN_SECONDS * 1000L
     }
 
-    /** ▶ প্লে-গেট এখন ফ্রি কি না — শেষ প্লে-অ্যাড দেখানোর ১ মিনিটের ভেতরে হলে ফ্রি */
+    /** গেট এখন ফ্রি কি না — শেষ অ্যাড দেখানোর ২ মিনিটের ভেতরে হলে ফ্রি (v3.7: সব অ্যাকশন) */
     private fun playGateFree(ctx: Context): Boolean {
         val last = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getLong(K_LAST_GATE, 0L)
         return System.currentTimeMillis() - last < Config.AD_COOLDOWN_SECONDS * 1000L
@@ -88,21 +88,45 @@ object Ads {
         openDirectLink(ctx, adult)
     }
 
-    /** ▶ প্লে / ⬇ ডাউনলোড ইত্যাদির আগে অ্যাড-গেট:
-     *  ▶ প্লে: শেষ প্লে-অ্যাডের ১ মিনিটের ভেতরে হলে free=true (অ্যাড ছাড়াই চলবে);
-     *    ১ মিনিট পার হলে আবার ৫-সেকেন্ডের গেট — প্রতিবার, চিরতরে বন্ধ নয়।
-     *  ⬇ ডাউনলোড / ✈ টেলিগ্রাম / 🌐 ব্রাউজার: প্রতিবারই অ্যাড-গেট।
-     *  গেট হলে র‍্যান্ডম Direct Link খোলে + অ্যাপে AD_WATCH_SECONDS সেকেন্ডের কাউন্টডাউন,
-     *  ফিরে এলে কাউন্টডাউন শেষ করে কাজটা হয়। */
-    fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = ""): Boolean {
-        if (type == ACT_PLAY) {
-            if (playGateFree(activity)) return true   /* ⏱ ১ মিনিটের ভেতরে আবার প্লে — অ্যাড নেই */
-            /* ⏱ এই মিনিটের প্লে-অ্যাড গোনা হলো — পরের গেট এর ১ মিনিট পরে */
-            activity.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
-                .putLong(K_LAST_GATE, System.currentTimeMillis()).apply()
-        }
-        /* ⬇ ডাউনলোড/টেলিগ্রাম/ব্রাউজার: কুলডাউন নেই — প্রতিবার অ্যাড */
+    /* ── ⏮⏭ এপিসোড-সুইচের গেট (v3.6 — মালিকের নির্দেশ) ──
+       ইউজার যেন এপিসোড স্কিপ করে অ্যাড এড়াতে না পারে: ▶ প্লে-গেটের হুবহু নিয়মই —
+       শেষ অ্যাডের ১ মিনিটের ভেতরে সুইচ = অ্যাড নেই; ১ মিনিট পার = ৫-সেকেন্ডের গেট + র‍্যান্ডম লিংক।
+       এটা PlayerActivity-এর নিজস্ব গেট — শেয়ারড পেন্ডিং-প্রেফ নয়, তাই ডিটেইল-পেজের
+       গেট-ফ্লোর সাথে জড়ায় না। */
+
+    /** true মানে গেট দেখাতে হবে (১ মিনিট পার); false মানে অ্যাড ছাড়াই সুইচ করো */
+    fun episodeGateNeeded(activity: Activity): Boolean {
+        if (playGateFree(activity)) return false
+        /* ⏱ এই মিনিটের অ্যাড গোনা হলো — পরের গেট এর ১ মিনিট পরে */
         activity.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+            .putLong(K_LAST_GATE, System.currentTimeMillis()).apply()
+        return true
+    }
+
+    /** গেট দেখানোর সময় র‍্যান্ডম ডিরেক্ট-লিংক খোলে (প্লে-গেটের মতোই) */
+    fun openEpisodeGateAd(activity: Activity) {
+        markAdShown(activity)
+        openDirectLink(activity, adultNow)
+    }
+
+    /** ▶ প্লে / ⏮⏭ এপিসোড-সুইচ / ⬇ ডাউনলোড / ✈ টেলিগ্রাম / 🌐 ব্রাউজার — সবার আগে অ্যাড-গেট:
+     *  (v3.7) সব অ্যাকশনে একই নিয়ম: শেষ অ্যাডের ২ মিনিটের ভেতরে হলে free=true (অ্যাড ছাড়াই);
+     *    ২ মিনিট পার হলে ৫-সেকেন্ডের গেট — প্রতিবার, চিরতরে বন্ধ নয়।
+     *  গেট হলে র‍্যান্ডম Direct Link খোলে (চলমান গেট থাকলে আর খোলে না) +
+     *  অ্যাপে AD_WATCH_SECONDS সেকেন্ডের কাউন্টডাউন, ফিরে এলে কাউন্টডাউন শেষ করে কাজটা হয়। */
+    fun requestAction(activity: Activity, type: Int, url: String, title: String, extra: String = ""): Boolean {
+        /* ⏱ (v3.7 মালিকের নির্দেশ) সব অ্যাকশনে একই নিয়ম — শেষ অ্যাডের ২ মিনিটের ভেতরে
+           হলে অ্যাড ছাড়াই কাজ; ২ মিনিট পার হলে গেট + র‍্যান্ডম ডিরেক্ট-লিংক।
+           প্লে হোক, ⏮⏭ এপিসোড-সুইচ হোক, ⬇ ডাউনলোড হোক — সব জায়গায় ২ মিনিট পর পর অ্যাড।
+           বেশি ক্লিকে বারবার লিংক খুললে অ্যাড-নেটওয়ার্ক স্প্যাম ধরে — এই থ্রটলই সেটা আটকায়। */
+        if (playGateFree(activity)) return true
+        val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        /* 💡 চলমান গেটের ৫ সেকেন্ডের মধ্যে আরেকটা ক্লিক এলে নতুন লিংক খোলা হয় না —
+           এক গেট = একটাই ওপেন (ইমপ্রেশন ফুলে যাওয়া বন্ধ) */
+        val gateRunning = p.getBoolean(K_PEND, false) &&
+            System.currentTimeMillis() - p.getLong(K_TS, 0L) < (Config.AD_WATCH_SECONDS + 3) * 1000L
+        p.edit()
+            .putLong(K_LAST_GATE, System.currentTimeMillis())
             .putLong(K_TS, System.currentTimeMillis())
             .putBoolean(K_PEND, true)
             .putInt(K_TYPE, type)
@@ -110,7 +134,7 @@ object Ads {
             .putString(K_EXTRA, extra)
             .putString(K_TITLE, title)
             .apply()
-        openDirectLink(activity, adultNow)
+        if (!gateRunning) openDirectLink(activity, adultNow)
         return false
     }
 

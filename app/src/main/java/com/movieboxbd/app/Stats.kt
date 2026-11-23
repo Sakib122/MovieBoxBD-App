@@ -46,6 +46,12 @@ object Stats {
 
     fun play(ctx: Context, movieTitle: String) = send(ctx, "play", movieTitle)
 
+    /** 🎬 (v4.0) প্লে চলাকালীন হার্টবিট — প্যানেলের "▶️ এখন যা দেখা হচ্ছে" লাইভ-বক্সের জন্য */
+    fun watch(ctx: Context, label: String) = send(ctx, "watch", label)
+
+    /** 🎬 (v4.1) দেখা বন্ধ — প্যানেলের লাইভ-বক্স থেকে সাথে সাথে নামিয়ে দেয় (২ মিনিট অপেক্ষা নেই) */
+    fun watchStop(ctx: Context) = send(ctx, "watch_stop", "")
+
     fun download(ctx: Context, movieTitle: String) = send(ctx, "download", movieTitle)
         /** 💓 হার্টবিট — অ্যাপ চালু আছে প্রমাণ। এটার জন্যই প্যানেলের "🔴 এখন লাইভ" কাজ করে */
     fun beat(ctx: Context) = send(ctx, "beat", "")

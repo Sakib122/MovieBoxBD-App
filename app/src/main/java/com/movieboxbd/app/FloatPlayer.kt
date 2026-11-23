@@ -137,23 +137,36 @@ object FloatPlayer {
         if (player != null) close()
     }
 
-    /** ⛶ — ফুলস্ক্রিন প্লেয়ারে পাঠানো (এখনকার পজিশনসহ) */
+    /** ⛶ — ফুলস্ক্রিন প্লেয়ারে পাঠানো — 🎬 (v4.2) এখন সিমলেস অ্যাডপ্ট:
+        পপআপের চলমান ExoPlayer-ই ফুলস্ক্রিনে যায় — নতুন করে লোড/বাফার হয় না,
+        পজিশন হুবহু থাকে (মিনি→ফুলস্ক্রিনের v3.7 পথের মতোই) */
     fun expand(act: Activity) {
         val p = player ?: return
-        val pos = p.currentPosition
         val u = url
         val n = name
         val t = movieTitle
-        release()
         detach()
         try {
+            /* প্লেয়ারটা ফুলস্ক্রিনের হাতে দিয়ে দাও — পপআপ নিজে আর ভাঙবে না */
+            DetailActivity.hfMovie = t
+            DetailActivity.hfUrl = u
+            DetailActivity.hfName = n
+            DetailActivity.hfPos = -1L      /* চলমান পজিশনই থাকবে — সিক দরকার নেই */
+            DetailActivity.hfPlayer = p
             val i = Intent(act, PlayerActivity::class.java)
             i.putExtra("url", u)
             i.putExtra("title", n)
             i.putExtra("movie_name", t)
-            i.putExtra("resume_pos", pos)
+            i.putExtra("resume_pos", -1L)
+            i.putExtra("adopt", true)
             act.startActivity(i)
+            player = null
+            url = ""
+            name = ""
         } catch (_: Exception) {
+            /* খুলতে না পারলে প্লেয়ার পপআপেই ফিরে বসে */
+            DetailActivity.hfPlayer = null
+            DetailActivity.hfPos = -1L
         }
     }
 

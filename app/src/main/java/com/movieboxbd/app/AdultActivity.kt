@@ -26,13 +26,17 @@ class AdultActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_adult)
 
+        /* 🔞 ১৮+ সেকশনে ঢুকেছি — এখন থেকে গেটের সব ডিরেক্ট-লিংক অ্যাডাল্ট পুল থেকেই যাবে
+           (AdultActivity-র গেট-অ্যাডও যেন কখনো ভুল পুলে না যায় — v3.5 সেফটি) */
+        Ads.adultNow = true
+
         findViewById<MaterialToolbar>(R.id.adultToolbar).setNavigationOnClickListener { finish() }
 
         val recycler = findViewById<RecyclerView>(R.id.adultGrid)
         spinner = findViewById(R.id.adultSpinner)
         emptyBox = findViewById(R.id.adultEmpty)
         adapter = MovieAdapter(items) { m ->
-            Ads.onPosterOpened(this, true) /* 💰 পোস্টার-ক্লিকে সাথে সাথে র‍্যান্ডম অ্যাডাল্ট লিংক */
+            /* (v3.7) পোস্টার-ক্লিকের অ্যাড বাদ — মালিকের নির্দেশ */
             startActivity(DetailActivity.intent(this, m))
         }
         recycler.layoutManager = GridLayoutManager(this, 2)
