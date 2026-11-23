@@ -1,16 +1,22 @@
 package com.movieboxbd.app
 
 import android.Manifest
+import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import androidx.core.app.NotificationCompat
+import androidx.core.content.FileProvider
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -39,13 +45,20 @@ object Updater {
     private const val CH_ID = "app_update"
     private const val NOTIF_ID = 1002
 
+    /* ── 🆕 ওয়ান-ট্যাপ আপডেট-ফ্লো ── */
+    private var pendingId: Long = -1
+    private var dlRc: BroadcastReceiver? = null
+    private var pendingUrl: String = "" 
+
     /** ব্লকিং কল — ব্যাকগ্রাউন্ড থ্রেড থেকেই ডাকো */
     fun fetch(): Info? {
         val api = Config.ADMIN_API.trimEnd('/')
         if (api.isBlank()) return null
         var c: HttpURLConnection? = null
         return try {
-            val conn = URL("$api/api/app/latest").openConnection() as HttpURLConnection
+            /* 🆕 নিজের versionCode পাঠাই — সার্ভার তখন বোঝে নতুন অ্যাপ ডাকছে, APK-লিঙ্ক দেয়।
+               পুরনো অ্যাপ (২.x–৪.২) প্যারাম পাঠায় না — ওদের সার্ভার গাইড-পেজ দেয় */
+            val conn = URL("$api/api/app/latest?code=${BuildConfig.VERSION_CODE}").openConnection() as HttpURLConnection
             c = conn
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
@@ -63,9 +76,96 @@ object Updater {
         }
     }
 
-    /** versionCode তুলনা করে আপডেট আছে কিনা */
+    /** versionCode তুলনা করে আপডেট আছে কি না */
     fun isNewer(info: Info?): Boolean =
         info != null && info.code > BuildConfig.VERSION_CODE
+
+    /* 🆕 আপডেট-ফাইল কোথায় বসবে (FileProvider-ও এই পথটাই চেনে) */
+    private fun apkFile(ctx: Context): File {
+        val dir = File(ctx.getExternalFilesDir(null), "update").apply { mkdirs() }
+        return File(dir, "movieboxbd-update.apk")
+    }
+
+    /**
+     * 🚀 ওয়ান-ট্যাপ আপডেট: ট্যাপ করলেই ব্যাকগ্রাউন্ডে ডাউনলোড (প্রোগ্রেস-নোটিফিকেশনসহ),
+     * শেষ হলে সিস্টেম-ইনস্টলার নিজেই খুলবে → Install → **Open/Done**।
+     * ব্রাউজারে গিয়ে ফাইল খোঁজার ঝামেলা নেই। একই সাইনিং-কি হলে সরাসরি বসে যায়।
+     * কোনো কারণে ডাউনলোড শুরু/সম্পন্ন না হলে আগের পথ: ব্রাউজারে APK-লিঙ্ক।
+     */
+    fun downloadAndInstall(ctx: Context, info: Info) {
+        val app = ctx.applicationContext
+        try {
+            val url = info.url.trim()
+            if (url.isBlank()) return
+            apkFile(app).delete()   /* আগের ডাউনলোড মুছে ফেলো */
+            val dm = app.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val req = DownloadManager.Request(Uri.parse(url))
+                .setTitle("MovieBoxBD ${info.name}")
+                .setDescription("আপডেট ডাউনলোড হচ্ছে…")
+                .setMimeType("application/vnd.android.package-archive")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalFilesDir(app, null, "update/movieboxbd-update.apk")
+            pendingUrl = url
+            pendingId = dm.enqueue(req)
+            registerDlReceiver(app)
+        } catch (_: Exception) {
+            /* ডাউনলোড-ম্যানেজার না চললে আগের নিয়ম: ব্রাউজার */
+            openBrowser(app, info.url)
+        }
+    }
+
+    /* ডাউনলোড-শেষ হলে ইনস্টলার খোলা */
+    private fun registerDlReceiver(app: Context) {
+        if (dlRc != null) return
+        val rc = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                val id = i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                if (id != pendingId) return
+                try {
+                    val dm = c.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                    dm.query(DownloadManager.Query().setFilterById(id)).use { cur ->
+                        if (cur.moveToFirst() &&
+                            cur.getInt(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) ==
+                            DownloadManager.STATUS_SUCCESSFUL
+                        ) {
+                            val f = apkFile(c)
+                            if (f.exists() && f.length() > 0) openInstaller(c, f)
+                            else openBrowser(c, pendingUrl)
+                        } else openBrowser(c, pendingUrl)
+                    }
+                } catch (_: Exception) {
+                    openBrowser(c, pendingUrl)
+                }
+            }
+        }
+        dlRc = rc
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= 33)
+            app.registerReceiver(rc, filter, Context.RECEIVER_NOT_EXPORTED)
+        else app.registerReceiver(rc, filter)
+    }
+
+    private fun openInstaller(ctx: Context, f: File) {
+        val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+        ctx.startActivity(
+            Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_ACTIVITY_NEW_TASK
+                )
+        )
+    }
+
+    private fun openBrowser(ctx: Context, url: String) {
+        if (url.isBlank()) return
+        try {
+            ctx.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url.trim()))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) {}
+    }
 
     /** 🔔 নোটিফিকেশন দেখানোর অনুমতি আছে কি না (Android 13+ এ রানটাইম পারমিশন লাগে) */
     fun hasPermission(ctx: Context): Boolean =
@@ -102,9 +202,10 @@ object Updater {
             }
             if (!hasPermission(ctx)) return false
 
-            val target: Intent = if (info.url.isNotBlank())
-                Intent(Intent.ACTION_VIEW, Uri.parse(info.url))
-            else Intent(ctx, MainActivity::class.java)
+            /* 🆕 নোটিফিকেশন ট্যাপ করলে অ্যাপ খুলবে — হোম খুলতেই পপআপ আবার আসবে,
+               বাটনে ট্যাপ করলেই ডাউনলোড+ইনস্টলার (ব্রাউজার-ঝামেলা নেই) */
+            val target = Intent(ctx, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val pi = PendingIntent.getActivity(
                 ctx, 2, target,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

@@ -219,9 +219,7 @@ class MainActivity : AppCompatActivity() {
                 findViewById<TextView>(R.id.updateText).text =
                     "🚀 নতুন ভার্সন ${info.name} এসেছে — ট্যাপ করে আপডেট করো"
                 banner.setOnClickListener {
-                    try {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
-                    } catch (_: Exception) {}
+                    Updater.downloadAndInstall(this, info)   /* 🆕 ওয়ান-ট্যাপ: ডাউনলোড → ইনস্টলার */
                 }
 
                 /* ② 🪟 পপআপ — ক্লোজ বাটনসহ; আপডেট না করা পর্যন্ত প্রতিবার অ্যাপ খুললেই আসবে */
@@ -231,9 +229,7 @@ class MainActivity : AppCompatActivity() {
                     .setTitle("🚀 নতুন ভার্সন ${info.name} এসেছে!")
                     .setMessage(msg)
                     .setPositiveButton("আপডেট করো") { _, _ ->
-                        try {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
-                        } catch (_: Exception) {}
+                        Updater.downloadAndInstall(this, info)   /* 🆕 ওয়ান-ট্যাপ: ডাউনলোড → ইনস্টলার → Open/Done */
                     }
                     .setNegativeButton("পরে", null)
                     .setCancelable(true)
