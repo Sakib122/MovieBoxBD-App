@@ -4,6 +4,12 @@ name: Build APK
 # ফাইল আপলোড/কমিট দিলে আর অটোমেটিক বিল্ড হবে না।
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: '🏷️ ভার্সন নম্বর (যেমন: 4.3) — বদলাতে না চাইলে এমনিই ঠিক'
+        required: false
+        default: '4.3'
+
 
 permissions:
   contents: write
@@ -27,7 +33,7 @@ jobs:
           gradle-version: '8.7'
 
       - name: APK বিল্ড
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon -PappVersionName=${{ github.event.inputs.version }}
 
       - name: APK রেডি করো
         run: |
@@ -39,9 +45,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: MovieBoxBD APK (build ${{ github.run_number }})
+          name: MovieBoxBD v${{ github.event.inputs.version }} APK (build ${{ github.run_number }})
           files: out/MovieBoxBD.apk
           body: |
-            📱 MovieBoxBD — নতুন APK তৈরি হয়েছে!
+            📱 MovieBoxBD v${{ github.event.inputs.version }} — নতুন APK তৈরি হয়েছে!
             নিচের MovieBoxBD.apk ডাউনলোড করে ইনস্টল করো।
           make_latest: true
