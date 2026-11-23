@@ -13,8 +13,9 @@ android {
            ইনস্টল করতে পারবে; Media3/ExoPlayer-ও 21 থেকেই চলে */
         minSdk 21
         targetSdk 34
-        versionCode 15
-        versionName "3.4"
+        /* 🏷️ ভার্সন — GitHub Actions এ "Run workflow"-তে ইনপুট দিলে সেটাই ব্যবহার হয় */
+        versionCode = (project.findProperty("appVersionCode") ?: "24").toString().toInteger()
+        versionName = (project.findProperty("appVersionName") ?: "4.3").toString()
     }
 
     buildTypes {
