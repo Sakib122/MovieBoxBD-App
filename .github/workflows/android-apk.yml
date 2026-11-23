@@ -32,6 +32,16 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: 🔑 কেস্টোর-চেক (এটা ছাড়া সব বিল্ড ভিন্ন কি-তে সাইন হবে!)
+        run: |
+          if [ ! -f keystore/movieboxbd.keystore ]; then
+            echo "❌ keystore/movieboxbd.keystore রিপোতে নেই!"
+            echo "   zip-এর keystore/ ফোল্ডারটাও GitHub-এ আপলোড/কমিট করো —"
+            echo "   ওই ফাইল ছাড়া বিল্ড হলে আপডেট ইনস্টল হবে না (package conflicts)।"
+            exit 1
+          fi
+          echo "✅ কেস্টোর আছে — স্থায়ী কি-তে সাইন হবে"
+
       - name: APK বিল্ড
         run: gradle assembleDebug --no-daemon -PappVersionName=${{ github.event.inputs.version }}
 
