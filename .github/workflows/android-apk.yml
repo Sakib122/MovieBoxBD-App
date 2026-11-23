@@ -51,6 +51,18 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk out/MovieBoxBD.apk
           ls -la out/
 
+      - name: 🔍 সাইনিং-কি যাচাই (স্থায়ী-কি না হলে রিলিজ হবেই না!)
+        run: |
+          FP=$(keytool -printcert -jarfile out/MovieBoxBD.apk | grep -o "SHA256: [0-9A-F:]*" | head -1 | sed 's/SHA256: //')
+          echo "APK-র কি: $FP"
+          if [ "$FP" != "0A:94:A4:1C:F3:3D:BC:E6:01:41:9D:E6:B9:86:EB:A2:41:E1:CF:67:60:D4:96:FF:58:CC:95:2D:2C:C1:93:A5" ]; then
+            echo "❌ স্থায়ী-কি নয় — এই APK রিলিজ করা যাবে না!"
+            echo "   কারণ: app/build.gradle-এ signingConfigs ব্লক নেই বা বদলে গেছে।"
+            echo "   ঠিক build.gradle (সাইনিং-ব্লকসহ) রিপোতে বসাও, তারপর আবার Run করো।"
+            exit 1
+          fi
+          echo "✅ স্থায়ী-কি নিশ্চিত — এই বিল্ড সব আপডেটের ওপর সরাসরি বসবে"
+
       - name: Release-এ APK তুলো
         uses: softprops/action-gh-release@v2
         with:
