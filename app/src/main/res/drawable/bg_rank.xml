@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 🥇 (v5.4) গোল্ড র‍্যাঙ্ক-ব্যাজ: #1–#10 — কোণায় বসানো রিবন-স্টাইল -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#FFD666"
+        android:endColor="#E8912D" />
+    <corners
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="10dp"
+        android:topLeftRadius="0dp"
+        android:topRightRadius="10dp" />
+</shape>

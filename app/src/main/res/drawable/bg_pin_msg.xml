@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 📌 (v5.4) পিন-রোর মেসেজ-পিল: আলো-বেগুনি গ্রেডিয়েন্ট + নরম বর্ডার — চোখে পড়ে -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:startColor="#251A3E"
+        android:endColor="#152042" />
+    <corners android:radius="12dp" />
+    <stroke
+        android:width="1dp"
+        android:color="#3D2E63" />
+</shape>
