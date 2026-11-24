@@ -9,7 +9,8 @@ data class MovieItem(
     val poster: String?,
     val labels: List<String>,
     val date: String,
-    val links: List<MediaLink>
+    val links: List<MediaLink>,
+    val pid: String = ""   /* 📌 (v5.4) Blogger পোস্ট-ID — প্যানেলের পিন ম্যাচ করতে */
 ) : Serializable
 
 /**

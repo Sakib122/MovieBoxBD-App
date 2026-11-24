@@ -101,6 +101,11 @@ object BloggerApi {
         val content = e.optJSONObject("content")?.optString("\$t").orEmpty()
         if (title.isEmpty() || content.isEmpty()) return null
 
+        /* 📌 (v5.4) পোস্ট-ID — প্যানেলের পিন-লিস্টের pid ম্যাচ করতে ("tag:…:post-123456") */
+        val pid = Regex("""post-(\d+)""")
+            .find(e.optJSONObject("id")?.optString("\$t").orEmpty())
+            ?.groupValues?.get(1).orEmpty()
+
         var permalink = ""
         val links = e.optJSONArray("link")
         if (links != null) {
@@ -130,7 +135,8 @@ object BloggerApi {
             poster = findPoster(content),
             labels = labels,
             date = date,
-            links = parseLinks(content, isSeries)
+            links = parseLinks(content, isSeries),
+            pid = pid
         )
     }
 

@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity() {
            প্যানেলে বদলালেই রানিং অ্যাপে সাথে সাথে বসে যায় */
         RemoteAds.loadCached(this)
         RemoteAds.refreshAsync(this)
+        Pinned.loadCached(this)   /* 📌 (v5.4) পিন করা মুভি — ক্যাশ আগে, টাটকা হোম-লোডে */
 
         homePane = findViewById(R.id.homePane)
         homeList = findViewById(R.id.homeList)
@@ -309,6 +310,11 @@ class MainActivity : AppCompatActivity() {
                 val all = ArrayList(p1.items)
                 all.addAll(p2.items)
 
+                /* 📌 (v5.4) পিন করা মুভি — প্যানেল থেকে টাটকা লিস্ট (ব্লগ-ফেচের সাথে প্যারালাল) */
+                var pins: List<Pinned.Pin> = emptyList()
+                val tPin = Thread { pins = Pinned.fetchBlocking(this) }
+                tPin.start()
+
                 /* 📺 ওয়েব সিরিজ — সর্বশেষ ৪০ পোস্টে অনেক সময় ১টাই থাকে, তাই নিজের "Web Series"
                    লেবেল-ফিড থেকে ২ পেজ পর্যন্ত আনি → যত ওয়েব সিরিজ আছে প্রায় সবগুলোই রো-তে দেখাবে */
                 var seriesAll: List<MovieItem> = emptyList()
@@ -331,7 +337,7 @@ class MainActivity : AppCompatActivity() {
                 val tDb = Thread { dubFeed = labelFeed(Config.BANGLA_DUB_QUERY) }
                 tEn.start(); tHo.start(); tKo.start(); tAn.start(); tBl.start(); tDb.start()
                 tEn.join(8000); tHo.join(8000); tKo.join(8000); tAn.join(8000)
-                tBl.join(8000); tDb.join(8000); tWs.join(8000)
+                tBl.join(8000); tDb.join(8000); tWs.join(8000); tPin.join(8000)
 
                 val heroes = all.filter { !BloggerApi.isAdult(it) }.take(4)   /* 🎬 হিরো স্লাইডার — সর্বশেষ ৪টা (এডাল্ট বাদ) */
 
@@ -347,6 +353,42 @@ class MainActivity : AppCompatActivity() {
                 val dub = (dubFeed + all.filter { it.labels.any { l ->
                         Config.BANGLA_DUB_LABELS.any { b -> l.equals(b, true) } } })
                     .distinctBy { it.permalink }
+
+                /* 📌 (v5.4) পিন রিজলভ — pid দিয়ে আগে লোড-করা পোস্টে খোঁজা; না পেলে
+                   টাইটেল-সার্চ (পুরনো পোস্টও পিনে আসবে); কোনোভাবেই না পেলে সেই পিন স্কিপ */
+                var pinnedRows: List<MovieItem> = emptyList()
+                if (pins.isNotEmpty()) {
+                    val byPid = HashMap<String, MovieItem>()
+                    fun reg(l: List<MovieItem>) {
+                        for (m in l) if (m.pid.isNotBlank()) byPid[m.pid] = m
+                    }
+                    reg(all); reg(seriesAll); reg(banglaFeed); reg(dubFeed)
+                    reg(english); reg(horror); reg(korean); reg(anime)
+                    val missing = pins.filter { byPid[it.pid] == null }
+                    val found = HashMap<String, MovieItem>()
+                    if (missing.isNotEmpty()) {
+                        val ths = missing.map { p ->
+                            Thread {
+                                try {
+                                    val pg = BloggerApi.load(null, p.title, 1)
+                                    var hit = pg.items.firstOrNull { it.pid == p.pid }
+                                    if (hit == null) {
+                                        val want = normTitle(p.title)
+                                        hit = pg.items.firstOrNull { normTitle(it.title) == want }
+                                    }
+                                    if (hit != null) synchronized(found) { found[p.pid] = hit }
+                                } catch (_: Exception) {
+                                }
+                            }
+                        }
+                        ths.forEach { it.start() }
+                        ths.forEach { it.join(9000) }
+                    }
+                    val seenPin = HashSet<String>()
+                    pinnedRows = pins.mapNotNull { byPid[it.pid] ?: found[it.pid] }
+                        .filter { it.permalink.isNotBlank() && seenPin.add(it.permalink) }
+                        .take(10)
+                }
 
                 /* 🏷️ (v4.3) বাংলা দুই সেকশন বাংলায়, আগের ক্রমে — বাংলা মুভি আগে, তারপর বাংলা ডাব;
                    বাকি হেডার ইংরেজিতেই */
@@ -365,7 +407,7 @@ class MainActivity : AppCompatActivity() {
                     homeSpinner.visibility = View.GONE
                     homeLoaded = true
                     homeAdapter?.pauseHero()
-                    homeAdapter = HomeAdapter(heroes, sections) { openMovie(it) }
+                    homeAdapter = HomeAdapter(heroes, pinnedRows, sections) { openMovie(it) }
                     homeList.adapter = homeAdapter
                     if (all.isEmpty()) homeEmpty.visibility = View.VISIBLE
                 }
@@ -377,6 +419,10 @@ class MainActivity : AppCompatActivity() {
             }
         }.start()
     }
+
+    /* 📌 (v5.4) টাইটেল-ম্যাচিং — ছোট হাতের + শুধু অক্ষর/সংখ্যা/বাংলা */
+    private fun normTitle(s: String): String =
+        s.lowercase().replace(Regex("[^0-9a-z\\u0980-\\u09FF]+"), " ").trim()
 
     /** 🏷️ এক লেবেলের সর্বশেষ পোস্টগুলা (হোম সেকশনের জন্য) — এডাল্ট থাকলে ঝাপসা দেখাবে */
     private fun labelFeed(label: String): List<MovieItem> = try {

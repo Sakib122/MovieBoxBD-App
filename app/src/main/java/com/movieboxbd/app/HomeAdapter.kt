@@ -17,11 +17,13 @@ import androidx.viewpager2.widget.ViewPager2
  * 🏠 নেটফ্লিক্স স্টাইল হোম:
  *  — উপরে হিরো স্লাইডার: সর্বশেষ ৪টা আপলোড, ৩.৫ সেকেন্ড পরপর অটো-স্লাইড,
  *    মাঝখানে ▶ প্লে বাটন, নিচে ডট ইন্ডিকেটর — হাতে টেনেও স্লাইড করা যায়
- *  — তারপর ক্যাটাগরি অনুযায়ী আড়াআড়ি রো: নতুন, ওয়েব সিরিজ, হিন্দি, বাংলা,
- *    ইংলিশ, হরর, কোরিয়ান...
+ *  — 📌 (v5.4) তারপর "এখন সবাই যা দেখছে" পিন-রো: অ্যাডমিন প্যানেল থেকে ১–১০ নাম্বারে
+ *    বসানো মুভি, গোল্ড #১–#১০ র‍্যাঙ্ক-ব্যাজ + চোখে পড়ে এমন মেসেজ — পিন না থাকলে রোটাই থাকবে না
+ *  — তারপর ক্যাটাগরি অনুযায়ী আড়াআড়ি রো: Recently Uploaded, ওয়েব সিরিজ, হিন্দি, বাংলা...
  */
 class HomeAdapter(
     private val heroes: List<MovieItem>,
+    private val pinned: List<MovieItem>,   /* 📌 প্যানেলের নাম্বার-অনুযায়ী সাজানো */
     private val sections: List<Pair<String, List<MovieItem>>>,
     private val onClick: (MovieItem) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -29,6 +31,9 @@ class HomeAdapter(
     private inner class Row(val title: String, val items: List<MovieItem>)
 
     private val rows: List<Row> = sections.map { Row(it.first, it.second) }
+    private val hasHero get() = heroes.isNotEmpty()
+    private val hasPin get() = pinned.isNotEmpty()
+    private val pinPos get() = if (hasHero) 1 else 0   /* 📌 রো-টা কোন পজিশনে বসবে */
 
     /* ── 🎬 হিরো অটো-স্লাইড ── */
     private val heroHandler = Handler(Looper.getMainLooper())
@@ -45,23 +50,36 @@ class HomeAdapter(
         }
     }
 
+    /* 📌 পিন-রো: শিরোনাম + মেসেজ + নাম্বার-ব্যাজ লাগানো পোস্টারের আড়াআড়ি লিস্ট */
+    inner class PinVH(v: View) : RecyclerView.ViewHolder(v) {
+        val list: RecyclerView = v.findViewById(R.id.pinList)
+    }
+
     class SectionVH(v: View) : RecyclerView.ViewHolder(v) {
         val title: TextView = v.findViewById(R.id.secTitle)
         val list: RecyclerView = v.findViewById(R.id.secList)
     }
 
-    override fun getItemViewType(position: Int) = if (position == 0 && heroes.isNotEmpty()) 0 else 1
+    override fun getItemViewType(position: Int): Int {
+        if (hasHero && position == 0) return 0
+        if (hasPin && position == pinPos) return 2
+        return 1
+    }
 
-    override fun getItemCount(): Int = rows.size + (if (heroes.isNotEmpty()) 1 else 0)
+    override fun getItemCount(): Int =
+        rows.size + (if (hasHero) 1 else 0) + (if (hasPin) 1 else 0)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-        return if (viewType == 0) {
-            HeroVH(
+        return when (viewType) {
+            0 -> HeroVH(
                 LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_hero, parent, false)
             )
-        } else {
-            SectionVH(
+            2 -> PinVH(
+                LayoutInflater.from(parent.context)
+                    .inflate(R.layout.item_section_pinned, parent, false)
+            )
+            else -> SectionVH(
                 LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_section, parent, false)
             )
@@ -69,7 +87,7 @@ class HomeAdapter(
     }
 
     override fun onBindViewHolder(h: RecyclerView.ViewHolder, pos: Int) {
-        if (h is HeroVH && heroes.isNotEmpty()) {
+        if (h is HeroVH && hasHero) {
             h.pager.adapter = HeroPagerAdapter(heroes, onClick)
             buildDots(h)
             h.pager.unregisterOnPageChangeCallback(h.pageCb) /* দুবার রেজিস্টার যেন না হয় */
@@ -78,8 +96,16 @@ class HomeAdapter(
             resumeHero()
             return
         }
+        if (h is PinVH && hasPin) {
+            h.list.layoutManager =
+                LinearLayoutManager(h.list.context, LinearLayoutManager.HORIZONTAL, false)
+            h.list.adapter = PinRowAdapter(pinned, onClick)
+            return
+        }
         if (h is SectionVH) {
-            val row = rows[if (heroes.isNotEmpty()) pos - 1 else pos]
+            val rowIdx = pos - (if (hasHero) 1 else 0) -
+                    (if (hasPin && pos > pinPos) 1 else 0)
+            val row = rows[rowIdx]
             h.title.text = row.title
             h.list.layoutManager =
                 LinearLayoutManager(h.list.context, LinearLayoutManager.HORIZONTAL, false)
@@ -179,6 +205,46 @@ class HomeAdapter(
             val open = View.OnClickListener { onClick(m) }
             h.itemView.setOnClickListener(open)
             h.play.setOnClickListener(open)
+        }
+    }
+
+    /* ── 📌 পিন-রোর পোস্টার — গোল্ড #নাম্বার ব্যাজ লাগানো (v5.4) ── */
+    private class PinRowAdapter(
+        private val items: List<MovieItem>,
+        private val onClick: (MovieItem) -> Unit
+    ) : RecyclerView.Adapter<PinRowAdapter.VH>() {
+
+        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val img: ImageView = v.findViewById(R.id.smallImg)
+            val name: TextView = v.findViewById(R.id.smallName)
+            val scrim: View = v.findViewById(R.id.smallScrim)
+            val badge: TextView = v.findViewById(R.id.smallBadge)
+            val rank: TextView = v.findViewById(R.id.pinRank)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val v = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_movie_pinned, parent, false)
+            return VH(v)
+        }
+
+        override fun getItemCount() = items.size
+
+        override fun onBindViewHolder(h: VH, pos: Int) {
+            val m = items[pos]
+            h.name.text = m.title
+            h.rank.text = "#${pos + 1}"
+            /* 🔞 এডাল্ট পিন হলেও একই নিয়ম — পোস্টার ঝাপসা + লাল ১৮+ ব্যাজ + ক্লিকে পপআপ গেট */
+            if (BloggerApi.isAdult(m)) {
+                h.scrim.visibility = View.VISIBLE
+                h.badge.visibility = View.VISIBLE
+                ImageLoader.load(h.img, m.poster, pixelate = true)
+            } else {
+                h.scrim.visibility = View.GONE
+                h.badge.visibility = View.GONE
+                ImageLoader.load(h.img, m.poster)
+            }
+            h.itemView.setOnClickListener { onClick(m) }
         }
     }
 
