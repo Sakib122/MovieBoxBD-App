@@ -28,7 +28,7 @@
         android:paddingTop="8dp"
         android:paddingEnd="12dp"
         android:paddingBottom="8dp"
-        android:text="🔥 হাজারো মানুষ এই মুভিগুলো দেখেছে — আপনিও মিস করবেন না!"
+        android:text="🔥 সবাই এই মুভিগুলো দেখতেছে — আপনিও চাইলে দেখতে পারেন!"
         android:textColor="#FFD666"
         android:textSize="12sp" />
 
