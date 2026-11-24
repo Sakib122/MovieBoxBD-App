@@ -14,8 +14,8 @@ android {
         minSdk 21
         targetSdk 34
         /* 🏷️ ভার্সন — GitHub Actions এ "Run workflow"-তে ইনপুট দিলে সেটাই ব্যবহার হয় */
-        versionCode = (project.findProperty("appVersionCode") ?: "25").toString().toInteger()
-        versionName = (project.findProperty("appVersionName") ?: "4.3").toString()
+        versionCode = (project.findProperty("appVersionCode") ?: "27").toString().toInteger()
+        versionName = (project.findProperty("appVersionName") ?: "5.1").toString()
     }
 
     /* 🔐 স্থায়ী সাইনিং — আগে প্রতি বিল্ডে এলোমেলো ডিবাগ-কি লাগত, তাই
