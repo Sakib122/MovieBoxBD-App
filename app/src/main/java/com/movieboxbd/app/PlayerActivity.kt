@@ -1021,7 +1021,10 @@ class PlayerActivity : AppCompatActivity() {
         if (Ads.episodeGateNeeded(this)) {
             pendingEpIdx = target
             pendingEpAuto = auto
-            epWatchMs = 0L
+            /* 🆕 (v5.2) ফ্রেশ-রিসেট বন্ধ: আগের চেষ্টায় আংশিক সেকেন্ড জমা থাকলে সেটুকুই থাকবে —
+               বাতিল করে আবার ⏭ চাপলে শূন্য থেকে না, বাকি সেকেন্ড থেকেই শুরু */
+            val needMs = RemoteAds.watchSeconds() * 1000L
+            if (epWatchMs <= 0L || epWatchMs >= needMs) epWatchMs = 0L
             epAwayTs = 0L
             Ads.openEpisodeGateAd(this)   /* 💰 র‍্যান্ডম ডিরেক্ট-লিংক (প্লে-গেটের মতোই) */
             player?.pause()
@@ -1038,7 +1041,9 @@ class PlayerActivity : AppCompatActivity() {
             "এই এপিসোড শেষ — পরের এপিসোডের আগে অ্যাড দেখো"
         else
             "পরের এপিসোডে যাওয়ার আগে অ্যাড দেখো"
-        epGateCount.text = RemoteAds.watchSeconds().toString()
+        /* 🆕 (v5.2) ওভারলেতে এখন বাকি সেকেন্ডই দেখাবে — আগে কিছু দেখা জমা থাকলে ১০ না, বাকিটা */
+        val remain = ((RemoteAds.watchSeconds() * 1000L - epWatchMs + 999) / 1000L).toInt().coerceAtLeast(1)
+        epGateCount.text = remain.toString()
         epGateBox.visibility = View.VISIBLE
     }
 
@@ -1061,13 +1066,12 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             val remain = ((need - epWatchMs + 999) / 1000L).toInt()
             Stats.gateFail(this, remain)
-            val needSec = RemoteAds.watchSeconds()
             try {
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("অ্যাড পুরো দেখা হয়নি")
                     .setMessage(
-                        "আপনি পুরো $needSec সেকেন্ড অ্যাডে ছিলেন না — আরও $remain সেকেন্ড বাকি ছিল।\n\n" +
-                            "আবার বিজ্ঞাপন খুলে পুরো $needSec সেকেন্ড থেকে ফিরে আসুন — তখনই পরের এপিসোড চলবে।"
+                        "আরও $remain সেকেন্ড বাকি ছিল — চিন্তা নেই, এতক্ষণের দেখা সেকেন্ডগুলো ধরে রাখা আছে।\n\n" +
+                            "আবার বিজ্ঞাপনে গিয়ে বাকি $remain সেকেন্ড পূর্ণ করে ফিরে আসুন — তখনই পরের এপিসোড চলবে।"
                     )
                     .setPositiveButton("বিজ্ঞাপন আবার খুলুন") { _, _ -> Ads.openEpisodeGateAd(this) }
                     .setNegativeButton("বাতিল") { _, _ ->
@@ -1089,7 +1093,7 @@ class PlayerActivity : AppCompatActivity() {
         pendingEpIdx = -1
         pendingEpAuto = false
         epGateBox.visibility = View.GONE
-        epWatchMs = 0L
+        /* 🆕 (v5.2) জমা সেকেন্ড মুছি না — আবার ⏭ চাপলে বাকি সেকেন্ড থেকেই গেট শুরু হবে */
         epAwayTs = 0L
         Ads.resetPlayGate(this)   /* 🛡 বাতিল = কুলডাউন-ফাঁক বন্ধ — পরের ক্লিকে আবার গেট */
         Stats.gateCancel(this)

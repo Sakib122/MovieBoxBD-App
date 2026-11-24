@@ -287,13 +287,14 @@ class DetailActivity : AppCompatActivity() {
         }
     }
 
-    /** ▶ লিংক প্লে — ইউজারের ট্যাপ হলে আগে অ্যাড-গেট, এরপর মিনি-প্লেয়ার */
+    /** ▶ লিংক প্লে — ইউজারের ট্যাপ হলে আগে অ্যাড-গেট, এরপর মিনি-প্লেয়ার
+     *  🆕 (v5.2) টোস্টে বাকি সেকেন্ড দেখায় — আগে কিছু জমা থাকলে ১০ না, বাকিটা */
     private fun playLink(link: MediaLink, fromUser: Boolean) {
         if (link.streamUrl.isBlank()) return
         if (fromUser) {
             val free = Ads.requestAction(this, Ads.ACT_PLAY, link.streamUrl, link.name)
             if (!free) {
-                Toast.makeText(this, "অ্যাড খোলা হয়েছে — অ্যাডে অন্তত ${RemoteAds.watchSeconds()} সেকেন্ড থেকে ফিরে আসলেই চলবে", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "অ্যাড খোলা হয়েছে — অ্যাডে বাকি ${Ads.gateRemainingSec(this)} সেকেন্ড পূর্ণ করে ফিরে আসলেই চলবে", Toast.LENGTH_LONG).show()
                 return
             }
         }
@@ -915,7 +916,21 @@ class DetailActivity : AppCompatActivity() {
                 )
                 h.tv.setOnClickListener {
                     panel.visibility = View.GONE
-                    if (l.streamUrl.isNotBlank()) playLink(l, true) else openTelegram(l.tgUrl)
+                    if (l.streamUrl.isNotBlank()) {
+                        playLink(l, true)
+                    } else {
+                        /* ✈ (v5.2) টাইল থেকে টেলিগ্রাম-ওপেনও এখন গেটের ভেতরে — বাইপাস-প্লাগ */
+                        val free = Ads.requestAction(this@DetailActivity, Ads.ACT_TELEGRAM, l.tgUrl, l.name)
+                        if (free) {
+                            openTelegram(l.tgUrl)
+                        } else {
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "অ্যাড খোলা হয়েছে — অ্যাডে বাকি ${Ads.gateRemainingSec(this@DetailActivity)} সেকেন্ড পূর্ণ করে ফিরে আসলেই টেলিগ্রাম খুলবে",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 }
             }
         }
@@ -1076,18 +1091,27 @@ class DetailActivity : AppCompatActivity() {
         Toast.makeText(this, "বাতিল করা হয়েছে", Toast.LENGTH_SHORT).show()
     }
 
-    /* 🛡 সময়ের আগে ফিরে এসেছে (v5.0) — সতর্কবার্তা: আরও কত সেকেন্ড বাকি ছিল।
-       আবার অ্যাড দেখে পুরো সময় পূর্ণ করলেই মুভি চলবে — বাইপাসের কোনো পথ নেই। */
+    /* 🛡 সময়ের আগে ফিরে এসেছে (v5.0) — সতর্কবার্তা। দুই সেক্টরে দুই লেখা (v5.3):
+       ▶ প্লে-গেট (v5.2 নিয়ম): দেখা সেকেন্ড জমা থাকে — বাকিটুকু দেখলেই প্লে; পরে কিছুক্ষণ
+         যেকোনো মুভি-প্লে অ্যাড-ফ্রি।
+       ⬇ ডাউনলোড-সেক্টর (মালিকের নির্দেশ): জমা থাকে না — প্রতিবার ক্লিকেই গেট, আবার
+         পুরো ১০ সেকেন্ড এক নিঃশ্বাসে দেখতে হবে। */
     private fun showGateWarning(remainingSec: Int) {
         Stats.gateFail(this, remainingSec)
-        val need = RemoteAds.watchSeconds()
+        val dlSector = Ads.pendingIsDownloadSector(this)
+        val watchSec = RemoteAds.watchSeconds()
+        val message = if (dlSector)
+            "আরও $remainingSec সেকেন্ড বাকি ছিল — ওই চেষ্টার সেকেন্ডগুলো জমা হয়নি।\n\n" +
+                "ডাউনলোড • ব্রাউজার • টেলিগ্রাম সেকশনে প্রতিবার ক্লিকেই অ্যাড লাগে, আর প্রতিবারই অ্যাডের পুরো $watchSec সেকেন্ড এক নিঃশ্বাসে দেখতে হয় — আগের চেষ্টার সেকেন্ড কোনোদিন জমা থাকে না।\n\n" +
+                "তাই \"বিজ্ঞাপন আবার খুলুন\" চেপে এবার পুরো $watchSec সেকেন্ড দেখে ফিরে আসুন — তখনই আপনার কাজটা সাথে সাথে হবে।"
+        else
+            "আরও $remainingSec সেকেন্ড বাকি ছিল — চিন্তা নেই, এতক্ষণের দেখা সেকেন্ডগুলো ধরে রাখা আছে।\n\n" +
+                "আবার বিজ্ঞাপনে গিয়ে বাকি $remainingSec সেকেন্ড পূর্ণ করে ফিরে আসুন — তখনই মুভিটা চলবে।\n\n" +
+                "পুরো দেখা হলে কিছুক্ষণ যেকোনো মুভি-প্লে অ্যাড-ফ্রি (ডাউনলোড • ব্রাউজার • টেলিগ্রাম আলাদা সেক্টর — প্রতিবার ক্লিকেই গেট)।"
         try {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("অ্যাড পুরো দেখা হয়নি")
-                .setMessage(
-                    "আপনি পুরো $need সেকেন্ড অ্যাডে ছিলেন না — আরও $remainingSec সেকেন্ড বাকি ছিল।\n\n" +
-                        "আবার বিজ্ঞাপন খুলে পুরো $need সেকেন্ড থেকে ফিরে আসুন — তখনই মুভি চালু হবে।"
-                )
+                .setMessage(message)
                 .setPositiveButton("বিজ্ঞাপন আবার খুলুন") { _, _ -> Ads.reopenGateLink(this) }
                 .setNegativeButton("বাতিল") { _, _ ->
                     Ads.cancelGate(this)
@@ -1269,13 +1293,14 @@ class DetailActivity : AppCompatActivity() {
                 androidx.core.content.ContextCompat.getColor(this@DetailActivity, R.color.textMain)
             )
 
-            /* 📢 এড খুললে: শিট বন্ধ + মেসেজ। এড-ফ্রি হলে (free=true): শুধু শিট বন্ধ */
+            /* 📢 এড খুললে: শিট বন্ধ + মেসেজ। এড-ফ্রি হলে (free=true): শুধু শিট বন্ধ।
+               🆕 (v5.2) মেসেজে বাকি সেকেন্ড — জমা থাকলে পুরোটা না, যতটা বাকি ততটা */
             fun beforeAd(free: Boolean) {
                 if (closeSheet) closeSheet()
                 if (free) return
                 Toast.makeText(
                     this@DetailActivity,
-                    "অ্যাড খোলা হয়েছে — অ্যাডে অন্তত ${RemoteAds.watchSeconds()} সেকেন্ড থেকে ফিরে আসলেই চলবে",
+                    "অ্যাড খোলা হয়েছে — অ্যাডে বাকি ${Ads.gateRemainingSec(this@DetailActivity)} সেকেন্ড পূর্ণ করে ফিরে আসলেই চলবে",
                     Toast.LENGTH_LONG
                 ).show()
             }

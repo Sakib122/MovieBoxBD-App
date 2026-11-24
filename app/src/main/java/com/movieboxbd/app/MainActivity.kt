@@ -123,8 +123,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnRetrySearch).setOnClickListener { doSearch() }
         searchBtn.setOnClickListener { doSearch() }
 
-        /* 🔄 রিলোড — হোম ট্যাবে হোম নতুন করে লোড হবে, অন্য ট্যাবে সেই লিস্ট */
+        /* 🔄 রিলোড — হোম ট্যাবে হোম নতুন করে লোড হবে, অন্য ট্যাবে সেই লিস্ট।
+           🆕 (v5.3) রিফ্রেশ = প্লে-ফ্রি-উইন্ডো শূন্য (নরমাল + ১৮+ দুটোই): যতবারই রিফ্রেশ
+           দিক, পরের প্লে আবার পুরো ১০-সেকেন্ড গেট দেখে তবেই নতুন ২ মিনিটের ফ্রি —
+           রিফ্রেশ করে ফ্রি-উইন্ডো বাঁচানোর পথ বন্ধ (মালিকের নির্দেশ) */
         findViewById<View>(R.id.btnReload).setOnClickListener {
+            Ads.resetPlayerWindows(this)
             Toast.makeText(this, "রিফ্রেশ করা হচ্ছে", Toast.LENGTH_SHORT).show()
             when (tab) {
                 R.id.navHome -> { homeLoaded = false; loadHome(true) }
