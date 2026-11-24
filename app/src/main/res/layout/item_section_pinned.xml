@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 📌 (v5.4) হোমের "এখন সবাই যা দেখছে" পিন-রো — চোখে পড়ে এমন মেসেজ + নাম্বার-ব্যাজ পোস্টার -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="10dp">
+
+    <TextView
+        android:id="@+id/pinTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:paddingHorizontal="12dp"
+        android:text="📌 এখন সবাই যা দেখছে"
+        android:textColor="@color/textMain"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/pinMsg"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/bg_pin_msg"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:text="🔥 হাজারো মানুষ এই মুভিগুলো দেখেছে — আপনিও মিস করবেন না!"
+        android:textColor="#FFD666"
+        android:textSize="12sp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/pinList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="6dp" />
+</LinearLayout>

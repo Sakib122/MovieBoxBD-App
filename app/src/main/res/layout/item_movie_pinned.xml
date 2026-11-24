@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 📌 (v5.4) পিন-রোর পোস্টার — সাধারণ পোস্টার + উপরে-বাঁয়ে গোল্ড #নাম্বার ব্যাজ -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="112dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <FrameLayout
+        android:layout_width="104dp"
+        android:layout_height="156dp">
+
+        <ImageView
+            android:id="@+id/smallImg"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/surface2"
+            android:contentDescription="poster"
+            android:scaleType="centerCrop" />
+
+        <!-- 🔞 এডাল্ট কার্ডের কালো পর্দা (ডিফল্ট লুকানো) -->
+        <View
+            android:id="@+id/smallScrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#66000000"
+            android:visibility="gone" />
+
+        <!-- 🔞 লাল ১৮+ ব্যাজ (ডিফল্ট লুকানো) -->
+        <TextView
+            android:id="@+id/smallBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_adult_badge"
+            android:paddingStart="8dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp"
+            android:text="18+"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <!-- 🥇 গোল্ড র‍্যাঙ্ক-ব্যাজ: #1 … #10 (প্যানেলের নাম্বার) -->
+        <TextView
+            android:id="@+id/pinRank"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start|top"
+            android:background="@drawable/bg_rank"
+            android:paddingStart="8dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="3dp"
+            android:text="#1"
+            android:textColor="#2B1B00"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/smallName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="@color/textSub"
+        android:textSize="11sp" />
+</LinearLayout>
