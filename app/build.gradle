@@ -14,10 +14,12 @@ android {
         minSdk 21
         targetSdk 34
         /* 🏷️ ভার্সন — GitHub Actions এ "Run workflow"-তে ইনপুট দিলে সেটাই ব্যবহার হয়
-           🆕 v5.3 (code 28): ডাউনলোড-সেক্টর গেট (প্রতিবার ক্লিকে ফ্রেশ ১০ সেকেন্ড) +
+           🆕 v5.4 (code 29): হোমে "এখন সবাই যা দেখছে" পিন-রো — পুরো কন্ট্রোল
+           অ্যাডমিন প্যানেলে (কোন মুভি কত নাম্বার পিনে, পিন তুললে অ্যাপ থেকেও উঠে যায়)
+           🛡 v5.3 (code 28): ডাউনলোড-সেক্টর গেট (প্রতিবার ক্লিকে ফ্রেশ ১০ সেকেন্ড) +
            নরমাল/১৮+ আলাদা প্লে-কুলডাউন + রিফ্রেশে ফ্রি-উইন্ডো রিসেট */
-        versionCode = (project.findProperty("appVersionCode") ?: "28").toString().toInteger()
-        versionName = (project.findProperty("appVersionName") ?: "5.3").toString()
+        versionCode = (project.findProperty("appVersionCode") ?: "29").toString().toInteger()
+        versionName = (project.findProperty("appVersionName") ?: "5.4").toString()
     }
 
     /* 🔐 স্থায়ী সাইনিং — আগে প্রতি বিল্ডে এলোমেলো ডিবাগ-কি লাগত, তাই
