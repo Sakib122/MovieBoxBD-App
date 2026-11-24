@@ -36,7 +36,9 @@ class AdultActivity : AppCompatActivity() {
         spinner = findViewById(R.id.adultSpinner)
         emptyBox = findViewById(R.id.adultEmpty)
         adapter = MovieAdapter(items) { m ->
-            /* (v3.7) পোস্টার-ক্লিকের অ্যাড বাদ — মালিকের নির্দেশ */
+            /* 🎬 (v5.1) প্যানেল থেকে চালু থাকলে প্রতি N-তম ক্লিকে একটা ১৮+ লিংক;
+               বন্ধ থাকলে (ডিফল্ট) কিছুই খোলে না */
+            Ads.maybePosterAd(this, true)
             startActivity(DetailActivity.intent(this, m))
         }
         recycler.layoutManager = GridLayoutManager(this, 2)

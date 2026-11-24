@@ -13,7 +13,6 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -104,8 +103,6 @@ class DetailActivity : AppCompatActivity() {
             ui.postDelayed(this, 45000L)
         }
     }
-    private var gateCount: TextView? = null
-    private var gateLeft = 0
     private var sheet: BottomSheetDialog? = null
 
     /* ── 🎬 মিনি-প্লেয়ার ── */
@@ -113,7 +110,6 @@ class DetailActivity : AppCompatActivity() {
     private var playingUrl = ""
     private var playingName = ""
     private var miniFailShown = false   /* 🎨 (v4.1) একবার ফেইলে একবারই কার্ড — বারবার স্প্যাম নয় */
-    private var miniRequested = false   /* গেট শেষ হলে মিনি-প্লেয়ারে চালাতে হবে */
 
     private lateinit var playerBox: FrameLayout
     private lateinit var pv: androidx.media3.ui.PlayerView
@@ -150,18 +146,6 @@ class DetailActivity : AppCompatActivity() {
         "ja" to "Japanese", "jpn" to "Japanese",
         "ne" to "Nepali", "nep" to "Nepali"
     )
-
-    private val gateTick = object : Runnable {
-        override fun run() {
-            if (gateLeft <= 0) {
-                finishGate()
-                return
-            }
-            gateCount?.text = gateLeft.toString()
-            gateLeft--
-            ui.postDelayed(this, 1000)
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -238,9 +222,10 @@ class DetailActivity : AppCompatActivity() {
         /* 🔥 সার্ভার আগে থেকে জাগানো — প্লে চাপলে স্ট্রিম দ্রুত আসে */
         m.links.firstOrNull { it.streamUrl.isNotBlank() }?.streamUrl?.let { preWarm(it) }
 
-        /* 💰 ব্যানার: ভেতরে 300×250, নিচে 320×50 — রিয়েল Adsterra কোড (১৮+ মুভিতে অ্যাডাল্ট ব্যানার) */
-        Ads.applyBanner(findViewById(R.id.adRect), Ads.bannerHtml(BloggerApi.isAdult(m), false))
-        Ads.applyBanner(findViewById(R.id.adBanner), Ads.bannerHtml(BloggerApi.isAdult(m), true))
+        /* 💰 (v5.0) ব্যানার সম্পূর্ণ বাদ — মৃত ইমপ্রেশন CPM নামাত;
+           স্লটগুলো লুকিয়ে রাখা — ফাঁকা জায়গাও থাকবে না */
+        hideAdSlot(R.id.adRect)
+        hideAdSlot(R.id.adBanner)
 
         /* ▶ বড় প্লে-বাটন + পোস্টারের যেকোনো জায়গায় ট্যাপ — প্রথম লিংক (অ্যাড-গেটের পরে) */
         findViewById<View>(R.id.btnMiniPlayBig).setOnClickListener { playFirst() }
@@ -292,14 +277,23 @@ class DetailActivity : AppCompatActivity() {
 
     /* ══════════ 🎬 মিনি-প্লেয়ার ══════════ */
 
+    /* 💰 (v5.0) ব্যানার-স্লট লুকানো — ভিউ + তার ধারক দুটোই GONE */
+    private fun hideAdSlot(id: Int) {
+        try {
+            val v = findViewById<View>(id)
+            v.visibility = View.GONE
+            (v.parent as? View)?.visibility = View.GONE
+        } catch (_: Exception) {
+        }
+    }
+
     /** ▶ লিংক প্লে — ইউজারের ট্যাপ হলে আগে অ্যাড-গেট, এরপর মিনি-প্লেয়ার */
     private fun playLink(link: MediaLink, fromUser: Boolean) {
         if (link.streamUrl.isBlank()) return
         if (fromUser) {
             val free = Ads.requestAction(this, Ads.ACT_PLAY, link.streamUrl, link.name)
             if (!free) {
-                miniRequested = true
-                Toast.makeText(this, "অ্যাড খোলা হয়েছে — ফিরে এসে ${Config.AD_WATCH_SECONDS} সেকেন্ডের কাউন্টডাউন শেষ করলেই চলবে", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "অ্যাড খোলা হয়েছে — অ্যাডে অন্তত ${RemoteAds.watchSeconds()} সেকেন্ড থেকে ফিরে আসলেই চলবে", Toast.LENGTH_LONG).show()
                 return
             }
         }
@@ -787,10 +781,16 @@ class DetailActivity : AppCompatActivity() {
         }
         hfPos = -1   /* হ্যান্ডওফ একবারই কাজ করবে */
 
-        /* ⏳ অ্যাড-গেট: ফিরে এলে বাকি সেকেন্ড দেখিয়ে কাজটা করা */
-        val remain = Ads.pendingRemaining(this)
-        if (remain < 0) return
-        startGateCountdown(remain)
+        /* 🛡 রিয়েল-কোয়ালিটি গেট (v5.0): অ্যাড-পেজে কাটানো সময় পূর্ণ হলে ফিরেই কাজ —
+           আগে ফিরে এলে সতর্কবার্তা (আরও কত সেকেন্ড বাকি ছিল) */
+        when (val r = Ads.onGateResume(this)) {
+            is Ads.GateResume.Done -> {
+                Stats.gatePass(this)
+                finishGate()
+            }
+            is Ads.GateResume.Early -> showGateWarning(r.remaining)
+            Ads.GateResume.None -> {}
+        }
     }
 
     /* ── 📚 এপিসোড/কোয়ালিটি চিপস + ড্রপ-প্যানেল ───────────────── */
@@ -844,8 +844,6 @@ class DetailActivity : AppCompatActivity() {
                     (p as? android.widget.HorizontalScrollView)?.smoothScrollTo(
                         maxOf(0, tv.left - dp(70)), 0
                     )
-                    (p as? android.widget.ScrollView)?.viewTreeObserver
-                        ?.addOnScrollChangedListener { checkVisibleBanners() }
                 }
             } else tv.setTextColor(0xFFFFFFFF.toInt())
             tv.textSize = 13f
@@ -1035,40 +1033,7 @@ class DetailActivity : AppCompatActivity() {
                 box.addView(rl)
             }
             i += 6
-            if (i < items.size) {
-                /* 💰 প্রতি ২ রোর পরে রিয়েল Adsterra ব্যানার (১৮+ পেজে অ্যাডাল্ট ব্যানার)
-                   ⭐ (v3.9) রোটা সত্যিই চোখে পড়লে তবেই লোড হয় — অদেখা ব্যানারের
-                   ইমপ্রেশন নেই, মানে সব ইমপ্রেশন রিয়েল-ভিউয়েবল → CPM হাই থাকে */
-                val b = inf.inflate(R.layout.item_fy_banner, box, false)
-                box.addView(b)
-                registerLazyBanner(b, pageAdult)
-            }
-        }
-    }
-
-    /* ── 💰 ভিউয়েবল-ব্যানার (v3.9): পেজ খোলামাত্র সব ব্যানার একসাথে ফায়ার করা বন্ধ —
-       যেটা ইউজারের চোখে পড়ে (স্ক্রল করে এলে) শুধু সেটাই লোড হয়। এতে ইমপ্রেশন
-       ভুয়া/ফর্স না হয়ে একদম রিয়েল হয় — নেটওয়ার্ক CPM-এ কোনো আঘাত আসে না। ── */
-    private val lazyBanners = ArrayList<Pair<View, Boolean>>()
-
-    private fun registerLazyBanner(row: View, adult: Boolean) {
-        lazyBanners.add(row to adult)
-        checkVisibleBanners()
-    }
-
-    private fun checkVisibleBanners() {
-        if (lazyBanners.isEmpty()) return
-        val vh = resources.displayMetrics.heightPixels
-        val it2 = lazyBanners.iterator()
-        while (it2.hasNext()) {
-            val (row, adult) = it2.next()
-            if (!row.isShown) continue
-            val loc = IntArray(2)
-            row.getLocationOnScreen(loc)
-            if (loc[1] < vh && loc[1] + row.height > 0) {
-                it2.remove()
-                Ads.applyBanner(row.findViewById(R.id.fyBannerWeb), Ads.bannerHtml(adult, true))
-            }
+            /* 💰 (v5.0) ব্যানার-রো সম্পূর্ণ বাদ — মৃত ইমপ্রেশন CPM নামাত */
         }
     }
 
@@ -1095,25 +1060,7 @@ class DetailActivity : AppCompatActivity() {
 
     /* ── অ্যাড গেট: ফিরে এলে বাকি সেকেন্ড দেখিয়ে কাজটা করা ─────── */
 
-    private fun startGateCountdown(seconds: Int) {
-        val overlay = findViewById<View>(R.id.gateOverlay)
-        gateCount = findViewById(R.id.gateCount)
-        val p = getSharedPreferences("mbx_ad", Context.MODE_PRIVATE)
-        val type = p.getInt("gate_type", Ads.ACT_PLAY)
-        findViewById<TextView>(R.id.gateMsg).text = when (type) {
-            Ads.ACT_PLAY -> "অ্যাড দেখা শেষ! প্লে শুরু হচ্ছে..."
-            Ads.ACT_DOWNLOAD -> "অ্যাড দেখা শেষ! ডাউনলোড শুরু হচ্ছে..."
-            Ads.ACT_TELEGRAM -> "অ্যাড দেখা শেষ! টেলিগ্রাম খুলছে..."
-            else -> "অ্যাড দেখা শেষ! ওয়েবসাইট খুলছে..."
-        }
-        overlay.visibility = View.VISIBLE
-        gateLeft = seconds
-        ui.removeCallbacks(gateTick)
-        ui.post(gateTick)
-    }
-
     private fun finishGate() {
-        findViewById<View>(R.id.gateOverlay).visibility = View.GONE
         val a = Ads.consume(this) ?: return
         when (a.type) {
             Ads.ACT_PLAY -> startMini(a.url, a.title, 0)   /* 🎬 মিনি-প্লেয়ারেই চলবে */
@@ -1124,10 +1071,33 @@ class DetailActivity : AppCompatActivity() {
     }
 
     fun cancelGate(v: View) {
-        ui.removeCallbacks(gateTick)
-        findViewById<View>(R.id.gateOverlay).visibility = View.GONE
         Ads.cancelGate(this)
+        Stats.gateCancel(this)
         Toast.makeText(this, "বাতিল করা হয়েছে", Toast.LENGTH_SHORT).show()
+    }
+
+    /* 🛡 সময়ের আগে ফিরে এসেছে (v5.0) — সতর্কবার্তা: আরও কত সেকেন্ড বাকি ছিল।
+       আবার অ্যাড দেখে পুরো সময় পূর্ণ করলেই মুভি চলবে — বাইপাসের কোনো পথ নেই। */
+    private fun showGateWarning(remainingSec: Int) {
+        Stats.gateFail(this, remainingSec)
+        val need = RemoteAds.watchSeconds()
+        try {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("অ্যাড পুরো দেখা হয়নি")
+                .setMessage(
+                    "আপনি পুরো $need সেকেন্ড অ্যাডে ছিলেন না — আরও $remainingSec সেকেন্ড বাকি ছিল।\n\n" +
+                        "আবার বিজ্ঞাপন খুলে পুরো $need সেকেন্ড থেকে ফিরে আসুন — তখনই মুভি চালু হবে।"
+                )
+                .setPositiveButton("বিজ্ঞাপন আবার খুলুন") { _, _ -> Ads.reopenGateLink(this) }
+                .setNegativeButton("বাতিল") { _, _ ->
+                    Ads.cancelGate(this)
+                    Stats.gateCancel(this)
+                }
+                .setCancelable(false)
+                .show()
+        } catch (_: Exception) {
+            Ads.cancelGate(this)
+        }
     }
 
     /* ── 🎨 (v4.1) মিনি-প্লেয়ারের ফলব্যাক কার্ড — ফুলস্ক্রিনের ডিজাইনেই, MX/VLC বাটনসহ ── */
@@ -1237,11 +1207,11 @@ class DetailActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        /* 🛡 (v5.0) গেট চলমান থাকলে এই মুহূর্ত থেকেই অ্যাড-পেজের সময় গোনা হবে */
+        Ads.onGatePause(this)
         /* 🔇 পেজ সরে গেলে (নতুন For You ডিটেইল / অ্যাড / অ্যাপ-সুইচ) মিনি-প্লেয়ার থেমে
            যাবে — দুই পেজের সাউন্ড একসাথে বাজবে না; ফিরে এলে ওই পজিশন থেকেই প্লে */
         player?.pause()
-        ui.removeCallbacks(gateTick)
-        findViewById<View>(R.id.gateOverlay).visibility = View.GONE
     }
 
     override fun onStop() {
@@ -1305,7 +1275,7 @@ class DetailActivity : AppCompatActivity() {
                 if (free) return
                 Toast.makeText(
                     this@DetailActivity,
-                    "অ্যাড খোলা হয়েছে — ফিরে এসে ${Config.AD_WATCH_SECONDS} সেকেন্ডের কাউন্টডাউন শেষ করলেই চলবে",
+                    "অ্যাড খোলা হয়েছে — অ্যাডে অন্তত ${RemoteAds.watchSeconds()} সেকেন্ড থেকে ফিরে আসলেই চলবে",
                     Toast.LENGTH_LONG
                 ).show()
             }

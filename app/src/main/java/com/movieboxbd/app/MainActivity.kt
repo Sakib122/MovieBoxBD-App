@@ -72,6 +72,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        /* ☁️ রিমোট অ্যাড-কনফিগ (v5.0) — ক্যাশ সাথে সাথে মেমোরিতে + প্যানেল থেকে
+           টাটকা সেটিং ব্যাকগ্রাউন্ডে: গেট চালু/বন্ধ, সেকেন্ড, কুলডাউন, লিংক পুল —
+           প্যানেলে বদলালেই রানিং অ্যাপে সাথে সাথে বসে যায় */
+        RemoteAds.loadCached(this)
+        RemoteAds.refreshAsync(this)
+
         homePane = findViewById(R.id.homePane)
         homeList = findViewById(R.id.homeList)
         homeSpinner = findViewById(R.id.homeSpinner)
@@ -107,8 +113,10 @@ class MainActivity : AppCompatActivity() {
 
         homeList.layoutManager = LinearLayoutManager(this)
 
-        /* 💰 হোম স্ক্রিনের নিচের ব্যানার অ্যাড — হোমে সবসময় সাধারণ (১৮+ নয়) অ্যাড */
-        Ads.applyBanner(findViewById(R.id.adBanner), Ads.bannerHtml(false, true))
+        /* 💰 (v5.0) ব্যানার সম্পূর্ণ বাদ — মৃত ইমপ্রেশন CPM নামাত;
+           স্লট দুটো লুকিয়ে রাখা — ফাঁকা জায়গাও থাকবে না */
+        findViewById<View>(R.id.adBanner).visibility = View.GONE
+        (findViewById<View>(R.id.adBanner).parent as? View)?.visibility = View.GONE
 
         findViewById<View>(R.id.btnRetry).setOnClickListener { load(true) }
         findViewById<View>(R.id.btnRetryHome).setOnClickListener { loadHome(true) }
@@ -268,7 +276,9 @@ class MainActivity : AppCompatActivity() {
                 .setTitle("18+ Adult Content")
                 .setMessage("এই কনটেন্ট শুধুমাত্র ১৮ বছর বা তার বেশি বয়সীদের জন্য।\n\nআপনি কি ১৮ বছর পার করেছেন?")
                 .setPositiveButton("হ্যাঁ, আমি ১৮+") { _, _ ->
-                    /* (v3.7) পোস্টার-ক্লিকের অ্যাড বাদ — মালিকের নির্দেশ; সরাসরি মুভিতে */
+                    /* 🎬 (v5.1) প্যানেল থেকে চালু থাকলে প্রতি N-তম ক্লিকে একটা ১৮+ লিংক;
+                       বন্ধ থাকলে (ডিফল্ট) কিছুই খোলে না — সরাসরি মুভিতে */
+                    Ads.maybePosterAd(this, true)
                     startActivity(DetailActivity.intent(this, m))
                 }
                 .setNegativeButton("না", null)
@@ -276,7 +286,9 @@ class MainActivity : AppCompatActivity() {
                 .show()
             return
         }
-        /* (v3.7) পোস্টার-ক্লিকের অ্যাড বাদ — বারবার অ্যাড এসে ইউজার বিরক্ত হত; সরাসরি মুভিতে */
+        /* 🎬 (v5.1) পোস্টার-ক্লিক অ্যাড — প্যানেল থেকে চালু থাকলে প্রতি N-তম ক্লিকে একটা নরমাল
+           লিংক খুলবে; ডিফল্ট বন্ধ — বন্ধ থাকলে পোস্টার-ক্লিক সম্পূর্ণ অ্যাড-ফ্রি */
+        Ads.maybePosterAd(this, false)
         startActivity(DetailActivity.intent(this, m))
     }
 

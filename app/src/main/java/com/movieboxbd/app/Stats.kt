@@ -57,6 +57,15 @@ object Stats {
     /** 💓 হার্টবিট — অ্যাপ চালু আছে প্রমাণ। এটার জন্যই প্যানেলের "🔴 এখন লাইভ" কাজ করে */
     fun beat(ctx: Context) = send(ctx, "beat", "")
 
+    /* 🛡 (v5.0) রিয়েল-কোয়ালিটি গেটের হিসাব — প্যানেলে আজ কতজন পুরো দেখল, কতজন
+       সময়ের আগে ফিরে এলো (বাইপাস চেষ্টা), কতজন বাতিল করল — সব আলাদা গোনা হয় */
+    fun gatePass(ctx: Context) = send(ctx, "gate_pass", "")
+    fun gateFail(ctx: Context, remainingSec: Int) = send(ctx, "gate_fail", "remain=$remainingSec")
+    fun gateCancel(ctx: Context) = send(ctx, "gate_cancel", "")
+
+    /* 🎬 (v5.1) পোস্টার-ক্লিক অ্যাড খুলল — প্যানেলে আজকের পোস্টার-অ্যাড ওপেন গোনা হয় */
+    fun posterAd(ctx: Context) = send(ctx, "poster_ad", "")
+
     /** ব্যাকগ্রাউন্ড থ্রেডে ছোট POST — কোনো এরর হলে চুপচাপ বাদ (অ্যাপে কোনো প্রভাব নেই) */
     private fun send(ctx: Context, event: String, label: String) {
         val api = Config.ADMIN_API.trimEnd('/')

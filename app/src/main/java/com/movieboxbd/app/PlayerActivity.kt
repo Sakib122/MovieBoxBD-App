@@ -105,7 +105,10 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var epGateCount: TextView
     private var pendingEpIdx = -1
     private var pendingEpAuto = false
-    private var epGateEndAt = 0L
+    /* 🛡 (v5.0) রিয়েল-কোয়ালিটি গেট — সময় শুধু অ্যাড-পেজে থাকার সময়ই গোনা হয়:
+       epWatchMs = অ্যাড-পেজে কাটানো মোট মিলিসেকেন্ড; epAwayTs = অ্যাপ শেষ কবে লুকালো */
+    private var epWatchMs = 0L
+    private var epAwayTs = 0L
     private var started = false
     private var locked = false
     private var controllerVisible = false
@@ -697,8 +700,9 @@ class PlayerActivity : AppCompatActivity() {
     /* 🛠 Play Store থেকে MX Player/VLC ইনস্টল করে ফিরে এলে ডায়ালগ নিজেই আবার দেখাও */
     override fun onResume() {
         super.onResume()
-        /* ⏮⏭ গেটের কাউন্টডাউন অ্যাড দেখতে ব্রাউজারে গেলেও ফিরে এসে চালু থাকে */
-        if (pendingEpIdx >= 0 && epGateBox.visibility == View.VISIBLE) tickEpGate()
+        /* 🛡 গেট চলমান থাকলে অ্যাড-পেজে কাটানো সময় যাচাই — পূর্ণ হলে সাথে সাথে সুইচ,
+           সময়ের আগে ফিরে এলে সতর্কবার্তা (আরও কত সেকেন্ড বাকি ছিল) */
+        if (pendingEpIdx >= 0 && epGateBox.visibility == View.VISIBLE) evaluateEpGate()
         if (audioDisabled && !isFinishing && !extPlayerUsed) {
             ui.removeCallbacks(reShowSoundHelp)
             ui.postDelayed(reShowSoundHelp, 600)
@@ -712,6 +716,10 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        /* 🛡 (v5.0) গেট চলমান থাকলে এই মুহূর্ত থেকেই অ্যাড-পেজের সময় গোনা হবে */
+        if (pendingEpIdx >= 0 && epGateBox.visibility == View.VISIBLE && epAwayTs == 0L) {
+            epAwayTs = System.currentTimeMillis()
+        }
         ui.removeCallbacks(reShowSoundHelp)
         /* 🎬 (v3.8) ফুলস্ক্রিন বন্ধ হচ্ছে (ব্যাক) → প্লেয়ার এখানেই মিনিতে ফেরত:
            onPause আগে চলে, DetailActivity-র onResume পরে — তাই মিনি ফিরে এসেই
@@ -1005,14 +1013,16 @@ class PlayerActivity : AppCompatActivity() {
     /* ── 📚 ⏮ ⏭ প্রিভিয়াস/নেক্সট — ফুলস্ক্রিনের ভেতরেই (মালিকের নির্দেশ v3.6) ──
        EP 129 দেখা অবস্থায় ⏭ চাপলে EP 130 সেখানেই চলবে, ⏮ চাপলে আগেরটা।
        ইউজার যেন এপিসোড স্কিপ করে অ্যাড এড়াতে না পারে — ▶ প্লে-গেটের হুবহু নিয়ম:
-       শেষ অ্যাডের ১ মিনিটের ভেতরে সুইচ = অ্যাড নেই; ১ মিনিট পার = ৫-সেকেন্ডের
-       অ্যাড-গেট → তারপর সুইচ। বাতিল করলে আগের এপিসোডেই ফিরে থাকবে (অটো-নেক্সট হলে বের হবে)। */
+       কুলডাউনের ভেতরে সুইচ = অ্যাড নেই; পার হলে রিয়েল ১০-সেকেন্ডের অ্যাড-গেট →
+       তারপর সুইচ। বাতিল করলে আগের এপিসোডেই ফিরে থাকবে (অটো-নেক্সট হলে বের হবে)। */
     private fun switchEpisode(target: Int, auto: Boolean = false) {
         if (target < 0 || target >= playUrls.size) return
         if (target == playIdx) return
         if (Ads.episodeGateNeeded(this)) {
             pendingEpIdx = target
             pendingEpAuto = auto
+            epWatchMs = 0L
+            epAwayTs = 0L
             Ads.openEpisodeGateAd(this)   /* 💰 র‍্যান্ডম ডিরেক্ট-লিংক (প্লে-গেটের মতোই) */
             player?.pause()
             showEpGate()
@@ -1021,35 +1031,56 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    /** ৫-সেকেন্ডের অ্যাড-গেট — শেষ হলেই ওই এপিসোডে চলে যাবে */
+    /** 🛡 রিয়েল-কোয়ালিটি গেট (v5.0): অ্যাড-পেজে পুরো N সেকেন্ড থাকলে ফিরেই সুইচ —
+        অ্যাপের ভেতরে কোনো কাউন্টডাউন চলে না (বসে থাকলে সময় এগোয় না) */
     private fun showEpGate() {
-        epGateEndAt = System.currentTimeMillis() + Config.AD_WATCH_SECONDS * 1000L
         epGateMsg.text = if (pendingEpAuto)
-            "এই এপিসোড শেষ — পরের এপিসোড চলবে"
+            "এই এপিসোড শেষ — পরের এপিসোডের আগে অ্যাড দেখো"
         else
             "পরের এপিসোডে যাওয়ার আগে অ্যাড দেখো"
+        epGateCount.text = RemoteAds.watchSeconds().toString()
         epGateBox.visibility = View.VISIBLE
-        tickEpGate()
     }
 
-    private fun tickEpGate() {
-        if (pendingEpIdx < 0) return
-        val remain = ((epGateEndAt - System.currentTimeMillis()) / 1000L).toInt()
-        if (remain <= 0) {
+    /** 🛡 ফিরে এসে গেট-যাচাই (onResume): অ্যাড-পেজের সময় পূর্ণ হলে সাথে সাথে সুইচ;
+        আগে ফিরলে সতর্কবার্তা — আরও কত সেকেন্ড বাকি ছিল + আবার দেখার সুযোগ */
+    private fun evaluateEpGate() {
+        val now = System.currentTimeMillis()
+        if (epAwayTs > 0) {
+            epWatchMs += now - epAwayTs
+            epAwayTs = 0L
+        }
+        val need = RemoteAds.watchSeconds() * 1000L
+        if (epWatchMs >= need) {
             val t = pendingEpIdx
             pendingEpIdx = -1
             pendingEpAuto = false
             epGateBox.visibility = View.GONE
+            Stats.gatePass(this)
             doSwitch(t)
         } else {
-            epGateCount.text = remain.toString()
-            ui.removeCallbacks(epGateTick)
-            ui.postDelayed(epGateTick, 400)
+            val remain = ((need - epWatchMs + 999) / 1000L).toInt()
+            Stats.gateFail(this, remain)
+            val needSec = RemoteAds.watchSeconds()
+            try {
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("অ্যাড পুরো দেখা হয়নি")
+                    .setMessage(
+                        "আপনি পুরো $needSec সেকেন্ড অ্যাডে ছিলেন না — আরও $remain সেকেন্ড বাকি ছিল।\n\n" +
+                            "আবার বিজ্ঞাপন খুলে পুরো $needSec সেকেন্ড থেকে ফিরে আসুন — তখনই পরের এপিসোড চলবে।"
+                    )
+                    .setPositiveButton("বিজ্ঞাপন আবার খুলুন") { _, _ -> Ads.openEpisodeGateAd(this) }
+                    .setNegativeButton("বাতিল") { _, _ ->
+                        Ads.resetPlayGate(this)
+                        Stats.gateCancel(this)
+                        cancelEpGate()
+                    }
+                    .setCancelable(false)
+                    .show()
+            } catch (_: Exception) {
+                cancelEpGate()
+            }
         }
-    }
-
-    private val epGateTick = object : Runnable {
-        override fun run() { tickEpGate() }
     }
 
     /** ইউজার গেট বাতিল করলে — আগের এপিসোডেই ফিরে আসে; অটো-নেক্সট (ভিডিও শেষ) হলে বের হয় */
@@ -1058,7 +1089,10 @@ class PlayerActivity : AppCompatActivity() {
         pendingEpIdx = -1
         pendingEpAuto = false
         epGateBox.visibility = View.GONE
-        ui.removeCallbacks(epGateTick)
+        epWatchMs = 0L
+        epAwayTs = 0L
+        Ads.resetPlayGate(this)   /* 🛡 বাতিল = কুলডাউন-ফাঁক বন্ধ — পরের ক্লিকে আবার গেট */
+        Stats.gateCancel(this)
         if (wasAuto) finish() else player?.play()
     }
 
