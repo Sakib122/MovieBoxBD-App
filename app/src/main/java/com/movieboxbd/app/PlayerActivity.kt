@@ -1026,7 +1026,9 @@ class PlayerActivity : AppCompatActivity() {
             val needMs = RemoteAds.watchSeconds() * 1000L
             if (epWatchMs <= 0L || epWatchMs >= needMs) epWatchMs = 0L
             epAwayTs = 0L
-            Ads.openEpisodeGateAd(this)   /* 💰 র‍্যান্ডম ডিরেক্ট-লিংক (প্লে-গেটের মতোই) */
+            /* 💓 (v5.5) বাকি সেকেন্ড পূর্ণ হলে ফোন একবার ভাইব্রেট করবে — তখন ব্যাক করে
+               ফিরে এলেই পরের এপিসোড (প্লে/ডাউনলোড-গেটের সাথে একই নিয়ম) */
+            Ads.openEpisodeGateAd(this, needMs - epWatchMs)   /* 💰 র‍্যান্ডম ডিরেক্ট-লিংক (প্লে-গেটের মতোই) */
             player?.pause()
             showEpGate()
         } else {
@@ -1037,10 +1039,12 @@ class PlayerActivity : AppCompatActivity() {
     /** 🛡 রিয়েল-কোয়ালিটি গেট (v5.0): অ্যাড-পেজে পুরো N সেকেন্ড থাকলে ফিরেই সুইচ —
         অ্যাপের ভেতরে কোনো কাউন্টডাউন চলে না (বসে থাকলে সময় এগোয় না) */
     private fun showEpGate() {
+        /* 💓 (v5.5) ওভারলেতেই নিয়মটা পরিষ্কার — সময় পূর্ণ হলে ভাইব্রেশন, ভাইব্রেশন
+           পেলেই ব্যাক করে ফিরে আসো */
         epGateMsg.text = if (pendingEpAuto)
-            "এই এপিসোড শেষ — পরের এপিসোডের আগে অ্যাড দেখো"
+            "এই এপিসোড শেষ — পরের এপিসোডের আগে অ্যাড দেখো। সময় পূর্ণ হলে ফোন নিজে থেকে একবার ভাইব্রেট করবে, ভাইব্রেশন পেলেই ব্যাক করে ফিরে এসো"
         else
-            "পরের এপিসোডে যাওয়ার আগে অ্যাড দেখো"
+            "পরের এপিসোডে যাওয়ার আগে অ্যাড দেখো। সময় পূর্ণ হলে ফোন নিজে থেকে একবার ভাইব্রেট করবে, ভাইব্রেশন পেলেই ব্যাক করে ফিরে এসো"
         /* 🆕 (v5.2) ওভারলেতে এখন বাকি সেকেন্ডই দেখাবে — আগে কিছু দেখা জমা থাকলে ১০ না, বাকিটা */
         val remain = ((RemoteAds.watchSeconds() * 1000L - epWatchMs + 999) / 1000L).toInt().coerceAtLeast(1)
         epGateCount.text = remain.toString()
@@ -1050,6 +1054,9 @@ class PlayerActivity : AppCompatActivity() {
     /** 🛡 ফিরে এসে গেট-যাচাই (onResume): অ্যাড-পেজের সময় পূর্ণ হলে সাথে সাথে সুইচ;
         আগে ফিরলে সতর্কবার্তা — আরও কত সেকেন্ড বাকি ছিল + আবার দেখার সুযোগ */
     private fun evaluateEpGate() {
+        /* 💓 (v5.5) অ্যাপে ফিরে এসেছি — ভাইব্রেশন-সিগন্যাল আর দরকার নেই; আবার অ্যাড
+           খুললে "বিজ্ঞাপন আবার খুলুন" বাটন বাকি সেকেন্ড অনুযায়ী নতুন করে শিডিউল করবে */
+        GateVibe.cancel(this)
         val now = System.currentTimeMillis()
         if (epAwayTs > 0) {
             epWatchMs += now - epAwayTs
@@ -1071,9 +1078,13 @@ class PlayerActivity : AppCompatActivity() {
                     .setTitle("অ্যাড পুরো দেখা হয়নি")
                     .setMessage(
                         "আরও $remain সেকেন্ড বাকি ছিল — চিন্তা নেই, এতক্ষণের দেখা সেকেন্ডগুলো ধরে রাখা আছে।\n\n" +
-                            "আবার বিজ্ঞাপনে গিয়ে বাকি $remain সেকেন্ড পূর্ণ করে ফিরে আসুন — তখনই পরের এপিসোড চলবে।"
+                            "আবার বিজ্ঞাপনে গিয়ে বাকি $remain সেকেন্ড পূর্ণ করে ফিরে আসুন — তখনই পরের এপিসোড চলবে।\n\n" +
+                            "এবার সময় পূর্ণ হলে ফোন নিজে থেকে একবার ভাইব্রেট করবে — ভাইব্রেশন পেলেই ব্যাক করে ফিরে আসুন।"
                     )
-                    .setPositiveButton("বিজ্ঞাপন আবার খুলুন") { _, _ -> Ads.openEpisodeGateAd(this) }
+                    .setPositiveButton("বিজ্ঞাপন আবার খুলুন") { _, _ ->
+                        /* 💓 (v5.5) বাকি সেকেন্ড অনুযায়ী ভাইব্রেশন-সিগন্যাল */
+                        Ads.openEpisodeGateAd(this, need - epWatchMs)
+                    }
                     .setNegativeButton("বাতিল") { _, _ ->
                         Ads.resetPlayGate(this)
                         Stats.gateCancel(this)
@@ -1093,6 +1104,7 @@ class PlayerActivity : AppCompatActivity() {
         pendingEpIdx = -1
         pendingEpAuto = false
         epGateBox.visibility = View.GONE
+        GateVibe.cancel(this)   /* 💓 (v5.5) গেট বাতিল — ভাইব্রেশন-সিগন্যালও বাতিল */
         /* 🆕 (v5.2) জমা সেকেন্ড মুছি না — আবার ⏭ চাপলে বাকি সেকেন্ড থেকেই গেট শুরু হবে */
         epAwayTs = 0L
         Ads.resetPlayGate(this)   /* 🛡 বাতিল = কুলডাউন-ফাঁক বন্ধ — পরের ক্লিকে আবার গেট */

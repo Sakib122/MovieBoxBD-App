@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 💓 (v5.5) অ্যাড-গেটের "১০ সেকেন্ড পূর্ণ" ভাইব্রেশন-সিগন্যাল — সাইলেন্ট মোডেও ইউজার টের পাবে -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- 🛠 v2.6.1 বড় ফিক্স: Android 11+ (API 30+) এ নতুন "Package Visibility" রুল —
          এই <queries> ছাড়া অ্যাপটা MX Player / VLC ইনস্টল থাকলেও দেখতেই পায় না,
@@ -54,6 +56,13 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
             android:windowLayoutInDisplayCutoutMode="shortEdges" />
+
+        <!-- 💓 (v5.5) অ্যাড-গেটের ভাইব্রেশন-অ্যালার্ম (GateVibe) — অ্যাপ ব্যাকগ্রাউন্ডে
+             থাকলেও / ফোন ডু মোডে থাকলেও ঠিক সময়ে জেগে একবার ভাইব্রেট করবে -->
+        <receiver
+            android:name=".GateVibeReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"
