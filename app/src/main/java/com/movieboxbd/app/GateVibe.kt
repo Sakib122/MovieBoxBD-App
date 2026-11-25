@@ -6,40 +6,59 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 
 /**
- * 💓 (v5.5) অ্যাড-গেট ভাইব্রেশন-সিগন্যাল — মালিকের নির্দেশ।
+ * 💓 (v5.6) অ্যাড-গেট ভাইব্রেশন-সিগন্যাল — মালিকের নির্দেশ।
  *
- * ইউজার অ্যাড-গেট দেখতে ব্রাউজারে গেলে অ্যাপ ব্যাকগ্রাউন্ডে চলে যায় — তখন অ্যাপের
- * সাধারণ হ্যান্ডলার/টাইমার আটকে যেতে পারে (দমন করা ROM-এ প্রসেস ফ্রিজও হয়)। তাই
- * "১০ সেকেন্ড পূর্ণ" সিগন্যালটা AlarmManager দিয়ে পাঠানো হয় — অ্যাপ ব্যাকগ্রাউন্ডে
- * থাকলেও, ফোন ডু মোডে থাকলেও (RTC_WAKEUP) ঠিক সময়ে জেগে উঠে একবার ভাইব্রেট করবে।
+ * v5.5-এর বাগ (মালিকের রিপোর্ট: OnePlus/Samsung-এ ভাইব্রেশন কাজই করছিল না):
+ *   সিগন্যাল পাঠানো হতো লিংক-খোলার ১২.৫ সেকেন্ড পরে — কিন্তু ইউজার নিজের গোনা
+ *   ১০ সেকেন্ড শেষ করে (~১১ সেকেন্ডে) ব্যাক করে অ্যাপে ফিরে আসে, আর অ্যাপে ফিরে-এসেই
+ *   শিডিউল বাতিল হয়ে যেত → ভাইব্রেশন কোনোদিন বাজতই না।
  *
- * ▶ নিয়ম (মালিকের নির্দেশ):
- *   • গেটের লিংক খোলামাত্র "বাকি সেকেন্ড + ছোট গ্রেস-টাইম" পরে ভাইব্রেশন শিডিউল হয় —
- *     ইউজার ভাইব্রেশন পেয়ে ব্যাক করে ফিরে এলেই অ্যাপের রিয়েল-টাইমারও পূর্ণ থাকে,
- *     ফিরেই প্লে/ডাউনলোড/টেলিগ্রাম/ব্রাউজার — সব সেক্টরে একই নিয়ম।
- *   • ▶ প্লে-গেটে আগের জমা সেকেন্ড থাকলে বাকিটুকুর হিসাবেই ভাইব্রেশন; ⬇ ডাউনলোড-সেক্টরে
- *     প্রতিবার ফ্রেশ — পুরো সেকেন্ড পূর্ণ হলেই।
- *   • অ্যাপে ফিরে এলে বা গেট বাতিল/পূর্ণ হলে শিডিউল বাতিল — ভাইব্রেশন ঠিক একবারই,
- *     শুধুমাত্র অ্যাড-পেজে সময় কাটানোর সময়ই আসবে।
- *   • সাউন্ড নয় — শুধু ভাইব্রেশন; ফোন সাইলেন্ট/ভাইব্রেট মোডে থাকলেও ইউজার টের পাবে।
+ * v5.6-তে দুটো বড় ফিক্স:
+ *   ① ⏱ সময়: এখন বাকি সেকেন্ড পূর্ণ হওয়ার সাথে সাথেই (নিচে EXTRA_MS দেখো) ভাইব্রেট
+ *      হয় — ইউজার ব্যাক করার আগেই, তাই ভাইব্রেশনটা সবসময় টের পাওয়া যায়।
+ *   ② 🔁 দুই পথে পাঠানো হয় —
+ *        ১. হ্যান্ডলার-টাইমার: প্রসেস জীবিত থাকলে (৯৯% ক্ষেত্রে) ঠিক সময়ে বাজে;
+ *        ২. AlarmManager অ্যালার্ম: প্রসেস ফ্রিজ/কিল হলেও সিস্টেম জেগে ভাইব্রেট করায়।
+ *      fire()-এ ডাবল-গার্ড আছে — দুই পথ কাছাকাছি সময়ে গেলেও ঠিক একবারই ভাইব্রেট হবে।
+ *
+ * ▶ নিয়ম: গেটের লিংক খোলামাত্র শিডিউল; অ্যাপে ফিরে এলে বা গেট বাতিল/পূর্ণ হলে বাতিল।
+ *   ▶ প্লে-গেটে আগের জমা সেকেন্ড থাকলে বাকিটুকুর হিসাবেই ভাইব্রেশন; ⬇ ডাউনলোড-সেক্টরে
+ *   প্রতিবার ফ্রেশ — পুরো সেকেন্ড পূর্ণ হলেই। সাউন্ড নয় — শুধু ভাইব্রেশন; ফোন
+ *   সাইলেন্ট/ভাইব্রেট মোডে থাকলেও টের পাওয়া যায়।
  */
 object GateVibe {
 
-    /* গ্রেস-টাইম: ভাইব্রেশন ঠিক need-এর মুহূর্তে না দিয়ে সামান্য পরে দেওয়া হয় —
-       অ্যাপের ঘড়ি চলা শুরু হয় onPause থেকে (লিংক খোলার সামান্য পরে), ব্রাউজার-সুইচের
-       ওই ব্যবধানটা ঢেকে দেয়; নইলে ভাইব্রেশন পেয়ে ফিরে এসে "১ সেকেন্ড বাকি ছিল"
-       সতর্কবার্তা দেখাতে পারে */
-    const val GRACE_MS = 2500L
+    /* লিংক খোলার মুহূর্ত থেকে অ্যাপের ঘড়ি চালু হতে (onPause) সামান্য সময় লাগে — ব্রাউজার
+       সুইচের সেই ব্যবধান ঢাকতে ভাইব্রেশন need-এর সামান্য পরে দেওয়া হয়; নইলে ভাইব্রেশন
+       পেয়ে সাথে সাথে ফিরে এসে "১ সেকেন্ড বাকি ছিল" সতর্কবার্তা দেখাতে পারে।
+       (v5.5-এ এটা ছিল ২৫০০ms — ইউজারের ব্যাক-প্রেসের পরে পড়ে যেত, তাই ৩০০ms) */
+    const val EXTRA_MS = 300L
 
     private const val REQ = 55501
 
-    /** delayMs পরে একবার ভাইব্রেট — আগে থেকে শিডিউল থাকলে সেটাই বদলে যায় (একবারই বাজবে) */
+    /* ডাবল-ফায়ার গার্ড — হ্যান্ডলার ও অ্যালার্ম কাছাকাছি সময়ে গেলে একবারই ভাইব্রেট */
+    private const val DEDUP_MS = 8000L
+
+    private val ui = Handler(Looper.getMainLooper())
+    private var uiTask: Runnable? = null
+    @Volatile private var lastFireTs = 0L
+
+    /** delayMs পরে একবার ভাইব্রেট — আগে থেকে শিডিউল থাকলে সেটা বাতিল হয়ে নতুনটা বসে */
     fun schedule(ctx: Context, delayMs: Long) {
+        cancel(ctx)
+        val app = ctx.applicationContext
+        /* ① হ্যান্ডলার-টাইমার — প্রসেস জীবিত থাকলে (সাধারণ ক্ষেত্রে) এটাই ঠিক সময়ে বাজে */
+        val task = Runnable { fire(app) }
+        uiTask = task
+        ui.postDelayed(task, delayMs)
+        /* ② অ্যালার্ম — অ্যাপ ব্যাকগ্রাউন্ডে প্রসেস ফ্রিজ/কিল হলেও সিস্টেম জেগে ভাইব্রেট করাবে */
         try {
             val am = ctx.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
             val at = System.currentTimeMillis() + delayMs.coerceAtLeast(1000L)
@@ -61,9 +80,33 @@ object GateVibe {
 
     /** শিডিউল-করা ভাইব্রেশন বাতিল — অ্যাপে ফিরে এলে / গেট বাতিল বা পূর্ণ হলে */
     fun cancel(ctx: Context) {
+        uiTask?.let { try { ui.removeCallbacks(it) } catch (_: Exception) {} }
+        uiTask = null
         try {
-            val am = ctx.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            am.cancel(pending(ctx))
+            (ctx.getSystemService(Context.ALARM_SERVICE) as? AlarmManager)?.cancel(pending(ctx))
+        } catch (_: Exception) {
+        }
+    }
+
+    /** 💓 একবার জোরে ভাইব্রেট (০.৭ সেকেন্ড) — ইউজার বুঝবে "১০ সেকেন্ড শেষ, এখন ব্যাক"।
+        হ্যান্ডলার ও অ্যালার্ম দুই পথই এখানে আসে — ডাবল-গার্ডে ঠিক একবারই বাজে */
+    @Suppress("DEPRECATION")
+    fun fire(ctx: Context) {
+        val now = System.currentTimeMillis()
+        if (now - lastFireTs < DEDUP_MS) return
+        lastFireTs = now
+        try {
+            val v: Vibrator? = if (Build.VERSION.SDK_INT >= 31) {
+                (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
+                    ?.defaultVibrator
+            } else {
+                ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            if (v == null || !v.hasVibrator()) return
+            if (Build.VERSION.SDK_INT >= 26)
+                v.vibrate(VibrationEffect.createOneShot(700L, VibrationEffect.DEFAULT_AMPLITUDE))
+            else
+                v.vibrate(700L)
         } catch (_: Exception) {
         }
     }
@@ -77,23 +120,9 @@ object GateVibe {
     }
 }
 
-/** 💓 অ্যালার্ম পৌঁছালে একবার জোরে ভাইব্রেট — ইউজার বুঝবে "১০ সেকেন্ড শেষ, এখন ব্যাক" */
-@Suppress("DEPRECATION")
+/** 💓 অ্যালার্ম পৌঁছালে GateVibe.fire() — ডাবল-গার্ড আছে, ঠিক একবারই ভাইব্রেট হবে */
 class GateVibeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        try {
-            val v: Vibrator? = if (Build.VERSION.SDK_INT >= 31) {
-                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
-                    ?.defaultVibrator
-            } else {
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }
-            if (v == null || !v.hasVibrator()) return
-            if (Build.VERSION.SDK_INT >= 26)
-                v.vibrate(VibrationEffect.createOneShot(700L, VibrationEffect.DEFAULT_AMPLITUDE))
-            else
-                v.vibrate(700L)
-        } catch (_: Exception) {
-        }
+        GateVibe.fire(context.applicationContext)
     }
 }

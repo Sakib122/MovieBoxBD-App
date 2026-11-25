@@ -33,6 +33,11 @@ import android.net.Uri
  *   ৮. 🎬 পোস্টার-ক্লিক অ্যাড (v5.1) — প্যানেল থেকে চালু করলে প্রতি N-তম পোস্টার-ক্লিকে
  *      একটা লিংক; ডিফল্ট বন্ধ। গেটের কুলডাউন টাইমারের সাথে জড়ায় না — গেটের রিয়েল-ওয়াচ
  *      যাচাই আগের মতোই চলে, কেউ পোস্টার-অ্যাড দেখে গেট স্কিপ করতে পারে না।
+ *   ৯. 🆕 (v5.5) 💓 গেট-ভাইব্রেশন — অ্যাড-পেজে বাকি সেকেন্ড পূর্ণ হলে ফোন নিজে থেকে
+ *      একবার ভাইব্রেট করে জানায় (সাইলেন্ট মোডেও): "সময় শেষ, এখন ব্যাক করে ফিরে এসো"।
+ *      প্লে • ডাউনলোড • ব্রাউজার • টেলিগ্রাম • এপিসোড-সুইচ — সব গেটে একই নিয়ম
+ *      (GateVibe)। অ্যাপে ফিরে এলে বা গেট বাতিল হলে সিগন্যাল বাতিল; আবার অ্যাড খুললে
+ *      বাকি সেকেন্ড অনুযায়ী নতুন করে শিডিউল।
  */
 object Ads {
 
@@ -66,16 +71,12 @@ object Ads {
 
     /* ══════════ 🛡 লাইফসাইকেল-হুক — অ্যাক্টিভিটি দুটোই ডাকবে ══════════ */
 
-    /** অ্যাপ লুকালো (onPause) — গেট চলমান থাকলে এই মুহূর্ত থেকেই অ্যাড-পেজের সময় গোনা হবে
-     *  🔔 (v5.5) সাথে সাথে বিপ-অ্যালার্মও বসে: বাকি সেকেন্ড পূর্ণ হলেই ফোন ফোন-কলের মতো
-     *  জোরে ভাইব্রেট করবে + বিপ — ইউজার ব্রাউজারে বসেই বুঝবে ফেরার সময় হয়েছে */
+    /** অ্যাপ লুকালো (onPause) — গেট চলমান থাকলে এই মুহূর্ত থেকেই অ্যাড-পেজের সময় গোনা হবে */
     fun onGatePause(ctx: Context) {
         try {
             val p = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             if (p.getBoolean(K_PEND, false) && p.getLong(K_AWAY, 0L) == 0L) {
                 p.edit().putLong(K_AWAY, System.currentTimeMillis()).apply()
-                val remain = RemoteAds.watchSeconds() * 1000L - p.getLong(K_WATCH, 0L)
-                GateAlert.schedule(ctx, remain.coerceAtLeast(1200L))
             }
         } catch (_: Exception) {
         }
@@ -88,10 +89,11 @@ object Ads {
         data class Early(val remaining: Int) : GateResume()   /* আগে ফিরে এসেছে — আরও remaining সেকেন্ড বাকি */
     }
 
-    /** ফিরে-এসে গেট-যাচাই: অ্যাড-পেজে কাটানো সময় জমা করে প্রয়োজনের সাথে মেলায়
-     *  🔔 (v5.5) ফিরে এসেই বিপ-অ্যালার্ম বাতিল; সময় পূর্ণ হলে ছোট খুশির দুই ধাক্কা */
+    /** ফিরে-এসে গেট-যাচাই: অ্যাড-পেজে কাটানো সময় জমা করে প্রয়োজনের সাথে মেলায় */
     fun onGateResume(ctx: Context): GateResume {
-        GateAlert.cancel(ctx)
+        /* 💓 (v5.5) অ্যাপে ফিরে এসেছি — বাকি-সেকেন্ড ভাইব্রেশন সিগন্যাল আর দরকার নেই
+           (ঘড়ি এখন থেমে আছে); আবার অ্যাড খুললে requestAction/reopenGateLink নতুন করে শিডিউল করবে */
+        GateVibe.cancel(ctx)
         val p = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         if (!p.getBoolean(K_PEND, false)) return GateResume.None
         val now = System.currentTimeMillis()
@@ -120,15 +122,11 @@ object Ads {
             val ok = watch >= need
             val left = ((need - watch + 999) / 1000L).toInt().coerceAtLeast(1)
             p.edit().putLong(K_WATCH, 0L).putLong(K_AWAY, 0L).apply()
-            if (ok) GateAlert.successBuzz(ctx)   /* 🔔 (v5.5) কাজ হচ্ছে — খুশির সংকেত */
             return if (ok) GateResume.Done else GateResume.Early(left)
         }
         p.edit().putLong(K_WATCH, watch).putLong(K_AWAY, 0L).apply()
-        if (watch >= need) {
-            GateAlert.successBuzz(ctx)   /* 🔔 (v5.5) কাজ হচ্ছে — খুশির সংকেত */
-            return GateResume.Done
-        }
-        return GateResume.Early(((need - watch + 999) / 1000L).toInt())
+        return if (watch >= need) GateResume.Done
+        else GateResume.Early(((need - watch + 999) / 1000L).toInt())
     }
 
     /* ══════════ গেট চালু / কুলডাউন ══════════ */
@@ -222,8 +220,11 @@ object Ads {
         return true
     }
 
-    /** গেট দেখানোর সময় র‍্যান্ডম ডিরেক্ট-লিংক খোলে (প্লে-গেটের মতোই) */
-    fun openEpisodeGateAd(activity: Activity) {
+    /** গেট দেখানোর সময় র‍্যান্ডম ডিরেক্ট-লিংক খোলে (প্লে-গেটের মতোই)
+     *  💓 (v5.6) remainingMs দিলে বাকি সেকেন্ড পূর্ণ হলে একবার ভাইব্রেট (PlayerActivity-র এপিসোড-গেট) */
+    fun openEpisodeGateAd(activity: Activity, remainingMs: Long = -1L) {
+        if (remainingMs > 0)
+            GateVibe.schedule(activity, remainingMs.coerceAtLeast(1000L) + GateVibe.EXTRA_MS)
         openDirectLink(activity, adultNow)
     }
 
@@ -235,6 +236,15 @@ object Ads {
             val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             if (p.getInt(K_TYPE, ACT_PLAY) != ACT_PLAY)
                 p.edit().putLong(K_WATCH, 0L).putLong(K_AWAY, 0L).apply()
+        } catch (_: Exception) {
+        }
+        /* 💓 (v5.6) আবার খোলা গেটেও ভাইব্রেশন — বাকি সেকেন্ড পূর্ণ হলেই (EXTRA_MS-সহ):
+           ⬇ ডাউনলোড-সেক্টরে জমা শূন্য (তাই পুরো ১০), ▶ প্লে-গেটে জমা বাদ দিয়ে বাকিটুকু */
+        try {
+            val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            val needMs = RemoteAds.watchSeconds() * 1000L
+            if (needMs > 0)
+                GateVibe.schedule(activity, (needMs - p.getLong(K_WATCH, 0L)).coerceAtLeast(1000L) + GateVibe.EXTRA_MS)
         } catch (_: Exception) {
         }
         openDirectLink(activity, adultNow)
@@ -284,6 +294,14 @@ object Ads {
                 if (!dlSector) resetPlayGate(activity)   /* ▶ প্লে-গেটের ফাঁকই শুধু বন্ধ */
                 return true
             }
+            /* 💓 (v5.6) অ্যাড-পেজে বাকি সেকেন্ড পূর্ণ হলে সাথে সাথেই একবার ভাইব্রেট —
+               ইউজার ব্যাক করার আগেই সিগন্যাল পৌঁছায় (v5.5-এ ২.৫ সেকেন্ড দেরিতে যেত,
+               ইউজার ১০ সেকেন্ডেই ব্যাক করে ফিরে এসে সিগন্যাল বাতিল হয়ে যেত)।
+               ▶ প্লে-গেটে আগের জমা সেকেন্ড বাদ দিয়ে বাকিটুকুর হিসাব;
+               ⬇ ডাউনলোড-সেক্টরে সবসময় পুরোটা। */
+            val seen = if (keepProgress) watchSoFar else 0L
+            if (needMs > 0)
+                GateVibe.schedule(activity, (needMs - seen).coerceAtLeast(1000L) + GateVibe.EXTRA_MS)
         }
         return false
     }
@@ -336,7 +354,7 @@ object Ads {
     }
 
     private fun clearPending(ctx: Context) {
-        GateAlert.cancel(ctx)   /* 🔔 (v5.5) গেট শেষ/বাতিল — বিপ-অ্যালার্মও তুলে নাও */
+        GateVibe.cancel(ctx)   /* 💓 (v5.5) গেট মুছলে বাকি-সেকেন্ড ভাইব্রেশন-সিগন্যালও বাতিল */
         try {
             ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
                 .putBoolean(K_PEND, false).remove(K_URL).remove(K_EXTRA).apply()
