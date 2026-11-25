@@ -33,10 +33,10 @@ import android.net.Uri
  *   ৮. 🎬 পোস্টার-ক্লিক অ্যাড (v5.1) — প্যানেল থেকে চালু করলে প্রতি N-তম পোস্টার-ক্লিকে
  *      একটা লিংক; ডিফল্ট বন্ধ। গেটের কুলডাউন টাইমারের সাথে জড়ায় না — গেটের রিয়েল-ওয়াচ
  *      যাচাই আগের মতোই চলে, কেউ পোস্টার-অ্যাড দেখে গেট স্কিপ করতে পারে না।
- *   ৯. 🆕 (v5.5) 💓 গেট-ভাইব্রেশন — অ্যাড-পেজে বাকি সেকেন্ড পূর্ণ হলে ফোন নিজে থেকে
- *      একবার ভাইব্রেট করে জানায় (সাইলেন্ট মোডেও): "সময় শেষ, এখন ব্যাক করে ফিরে এসো"।
+ *   ৯. 🆕 (v5.7) 🔊 গেট-সিগন্যাল — অ্যাড-পেজে বাকি সেকেন্ড পূর্ণ হলেই অ্যাপ থেকে
+ *      টং করে একটা সাউন্ড (সাথে একবার ভাইব্রেটও): "সময় শেষ, এখন ব্যাক করে ফিরে এসো"।
  *      প্লে • ডাউনলোড • ব্রাউজার • টেলিগ্রাম • এপিসোড-সুইচ — সব গেটে একই নিয়ম
- *      (GateVibe)। অ্যাপে ফিরে এলে বা গেট বাতিল হলে সিগন্যাল বাতিল; আবার অ্যাড খুললে
+ *      (GateSignal)। অ্যাপে ফিরে এলে বা গেট বাতিল হলে সিগন্যাল বাতিল; আবার অ্যাড খুললে
  *      বাকি সেকেন্ড অনুযায়ী নতুন করে শিডিউল।
  */
 object Ads {
@@ -91,9 +91,9 @@ object Ads {
 
     /** ফিরে-এসে গেট-যাচাই: অ্যাড-পেজে কাটানো সময় জমা করে প্রয়োজনের সাথে মেলায় */
     fun onGateResume(ctx: Context): GateResume {
-        /* 💓 (v5.5) অ্যাপে ফিরে এসেছি — বাকি-সেকেন্ড ভাইব্রেশন সিগন্যাল আর দরকার নেই
+        /* 💓 (v5.7) অ্যাপে ফিরে এসেছি — বাকি-সেকেন্ড টং-সিগন্যাল আর দরকার নেই
            (ঘড়ি এখন থেমে আছে); আবার অ্যাড খুললে requestAction/reopenGateLink নতুন করে শিডিউল করবে */
-        GateVibe.cancel(ctx)
+        GateSignal.cancel(ctx)
         val p = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         if (!p.getBoolean(K_PEND, false)) return GateResume.None
         val now = System.currentTimeMillis()
@@ -221,10 +221,10 @@ object Ads {
     }
 
     /** গেট দেখানোর সময় র‍্যান্ডম ডিরেক্ট-লিংক খোলে (প্লে-গেটের মতোই)
-     *  💓 (v5.6) remainingMs দিলে বাকি সেকেন্ড পূর্ণ হলে একবার ভাইব্রেট (PlayerActivity-র এপিসোড-গেট) */
+     *  💓 (v5.7) remainingMs দিলে বাকি সেকেন্ড পূর্ণ হলে টং সাউন্ড (PlayerActivity-র এপিসোড-গেট) */
     fun openEpisodeGateAd(activity: Activity, remainingMs: Long = -1L) {
         if (remainingMs > 0)
-            GateVibe.schedule(activity, remainingMs.coerceAtLeast(1000L) + GateVibe.EXTRA_MS)
+            GateSignal.schedule(activity, remainingMs.coerceAtLeast(1000L) + GateSignal.EXTRA_MS)
         openDirectLink(activity, adultNow)
     }
 
@@ -238,13 +238,13 @@ object Ads {
                 p.edit().putLong(K_WATCH, 0L).putLong(K_AWAY, 0L).apply()
         } catch (_: Exception) {
         }
-        /* 💓 (v5.6) আবার খোলা গেটেও ভাইব্রেশন — বাকি সেকেন্ড পূর্ণ হলেই (EXTRA_MS-সহ):
+        /* 💓 (v5.7) আবার খোলা গেটেও সিগন্যাল — বাকি সেকেন্ড পূর্ণ হলেই টং (EXTRA_MS-সহ):
            ⬇ ডাউনলোড-সেক্টরে জমা শূন্য (তাই পুরো ১০), ▶ প্লে-গেটে জমা বাদ দিয়ে বাকিটুকু */
         try {
             val p = activity.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             val needMs = RemoteAds.watchSeconds() * 1000L
             if (needMs > 0)
-                GateVibe.schedule(activity, (needMs - p.getLong(K_WATCH, 0L)).coerceAtLeast(1000L) + GateVibe.EXTRA_MS)
+                GateSignal.schedule(activity, (needMs - p.getLong(K_WATCH, 0L)).coerceAtLeast(1000L) + GateSignal.EXTRA_MS)
         } catch (_: Exception) {
         }
         openDirectLink(activity, adultNow)
@@ -294,14 +294,14 @@ object Ads {
                 if (!dlSector) resetPlayGate(activity)   /* ▶ প্লে-গেটের ফাঁকই শুধু বন্ধ */
                 return true
             }
-            /* 💓 (v5.6) অ্যাড-পেজে বাকি সেকেন্ড পূর্ণ হলে সাথে সাথেই একবার ভাইব্রেট —
-               ইউজার ব্যাক করার আগেই সিগন্যাল পৌঁছায় (v5.5-এ ২.৫ সেকেন্ড দেরিতে যেত,
-               ইউজার ১০ সেকেন্ডেই ব্যাক করে ফিরে এসে সিগন্যাল বাতিল হয়ে যেত)।
+            /* 💓 (v5.7) অ্যাড-পেজে বাকি সেকেন্ড পূর্ণ হলে সাথে সাথেই টং করে সাউন্ড —
+               ইউজার ব্যাক করার আগেই সিগন্যাল পৌঁছায় (v5.5-এর ভাইব্রেশন ইউজারের
+               ব্যাক-প্রেসের পরে পড়ত — তাই মালিকের নির্দেশে এখন সাউন্ড)।
                ▶ প্লে-গেটে আগের জমা সেকেন্ড বাদ দিয়ে বাকিটুকুর হিসাব;
                ⬇ ডাউনলোড-সেক্টরে সবসময় পুরোটা। */
             val seen = if (keepProgress) watchSoFar else 0L
             if (needMs > 0)
-                GateVibe.schedule(activity, (needMs - seen).coerceAtLeast(1000L) + GateVibe.EXTRA_MS)
+                GateSignal.schedule(activity, (needMs - seen).coerceAtLeast(1000L) + GateSignal.EXTRA_MS)
         }
         return false
     }
@@ -354,7 +354,7 @@ object Ads {
     }
 
     private fun clearPending(ctx: Context) {
-        GateVibe.cancel(ctx)   /* 💓 (v5.5) গেট মুছলে বাকি-সেকেন্ড ভাইব্রেশন-সিগন্যালও বাতিল */
+        GateSignal.cancel(ctx)   /* 💓 (v5.7) গেট মুছলে বাকি-সেকেন্ড টং-সিগন্যালও বাতিল */
         try {
             ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
                 .putBoolean(K_PEND, false).remove(K_URL).remove(K_EXTRA).apply()
